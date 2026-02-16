@@ -97,6 +97,9 @@ target_include_directories(mavlink_c
 		${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_UAVIONIX}
 )
 
+# Add mbedtls include directory to the entire MAVLink directory scope
+include_directories(${PX4_SOURCE_DIR}/src/lib/crypto/mbedtls/include)
+
 px4_add_module(
 	MODULE modules__mavlink
 	MAIN mavlink
@@ -138,6 +141,7 @@ px4_add_module(
 		sensor_calibration
 		geo
 		mavlink_c
+		mbedtls
 		timesync
 		tunes
 		variable_length_ringbuffer
