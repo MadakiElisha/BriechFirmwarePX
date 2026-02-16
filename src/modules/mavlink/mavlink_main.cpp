@@ -2278,8 +2278,11 @@ Mavlink::task_main(int argc, char *argv[])
 		px4_prctl(PR_SET_NAME, thread_name, px4_getpid());
 
 		// Initialize encryption class
-		// Only Initialize Encryption class for Telemetry 0
-		if(_instance_id == 0) _crypt = new MavlinkCrypt();
+		// Only Initialize Encryption class for the necessary Telemetry ports
+		if(_instance_id == 0){
+			_crypt = new MavlinkCrypt();
+			_receiver.set_crypt(_crypt);
+		}
 
 	} else {
 		PX4_ERR("no instances available");

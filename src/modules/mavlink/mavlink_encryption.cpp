@@ -10,7 +10,7 @@ MavlinkCrypt::MavlinkCrypt() :
 	memset(&_aes_ctx, 0, sizeof(_aes_ctx));
 	memset(_encryption_key, 0, sizeof(_encryption_key));
 
-	PX4_INFO("MavLinkCrypt constructed");
+	// PX4_INFO("MavLinkCrypt constructed");
 }
 
 MavlinkCrypt::~MavlinkCrypt()
