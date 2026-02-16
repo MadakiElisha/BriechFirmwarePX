@@ -89,6 +89,12 @@ MavlinkReceiver::~MavlinkReceiver()
 	_sensor_baro_pub.unadvertise();
 	_sensor_gps_pub.unadvertise();
 	_sensor_optical_flow_pub.unadvertise();
+
+	if(_crypt != nullptr){
+		delete _crypt;
+		_crypt = nullptr;
+	}
+
 }
 
 static constexpr vehicle_odometry_s vehicle_odometry_empty {
@@ -107,7 +113,7 @@ static constexpr vehicle_odometry_s vehicle_odometry_empty {
 	.quality = 0
 };
 
-MavlinkReceiver::MavlinkReceiver(Mavlink &parent, MavlinkCrypt &crypt) :
+MavlinkReceiver::MavlinkReceiver(Mavlink &parent, MavlinkCrypt *crypt) :
 	ModuleParams(nullptr),
 	_mavlink(parent),
 	_crypt(crypt),

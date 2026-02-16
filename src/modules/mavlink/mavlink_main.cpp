@@ -103,6 +103,7 @@ bool Mavlink::_boot_complete = false;
 
 Mavlink::Mavlink() :
 	ModuleParams(nullptr),
+	_crypt(nullptr),
 	_receiver(*this, _crypt)
 {
 	// initialise parameter cache
@@ -174,6 +175,12 @@ Mavlink::~Mavlink()
 				break;
 			}
 		}
+	}
+
+	// Free crypt memory
+	if(_crypt != nullptr){
+		delete _crypt;
+		_crypt = nullptr;
 	}
 
 	perf_free(_loop_perf);
@@ -2269,6 +2276,10 @@ Mavlink::task_main(int argc, char *argv[])
 		char thread_name[13];
 		snprintf(thread_name, sizeof(thread_name), "mavlink_if%d", get_instance_id());
 		px4_prctl(PR_SET_NAME, thread_name, px4_getpid());
+
+		// Initialize encryption class
+		// Only Initialize Encryption class for Telemetry 0
+		if(_instance_id == 0) _crypt = new MavlinkCrypt();
 
 	} else {
 		PX4_ERR("no instances available");
