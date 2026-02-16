@@ -107,9 +107,10 @@ static constexpr vehicle_odometry_s vehicle_odometry_empty {
 	.quality = 0
 };
 
-MavlinkReceiver::MavlinkReceiver(Mavlink &parent) :
+MavlinkReceiver::MavlinkReceiver(Mavlink &parent, MavlinkCrypt &crypt) :
 	ModuleParams(nullptr),
 	_mavlink(parent),
+	_crypt(crypt),
 	_mavlink_ftp(parent),
 	_mavlink_log_handler(parent),
 	_mission_manager(parent),

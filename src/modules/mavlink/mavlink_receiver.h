@@ -51,6 +51,8 @@
 #include "mavlink_timesync.h"
 #include "tune_publisher.h"
 
+#include "mavlink_encryption.h" // Includes the encryption class for decryption
+
 #include <geo/geo.h>
 #include <lib/drivers/accelerometer/PX4Accelerometer.hpp>
 #include <lib/drivers/gyroscope/PX4Gyroscope.hpp>
@@ -126,7 +128,7 @@ class Mavlink;
 class MavlinkReceiver : public ModuleParams
 {
 public:
-	MavlinkReceiver(Mavlink &parent);
+	MavlinkReceiver(Mavlink &parent, MavlinkCrypt &crypt);
 	~MavlinkReceiver() override;
 
 	void start();
@@ -140,6 +142,7 @@ public:
 
 private:
 	static void *start_trampoline(void *context);
+
 	void run();
 
 	void acknowledge(uint8_t sysid, uint8_t compid, uint16_t command, uint8_t result, uint8_t progress = 0);
@@ -250,6 +253,7 @@ private:
 	void updateParams() override;
 
 	Mavlink &_mavlink;
+	MavlinkCrypt &_crypt;
 
 	MavlinkFTP			_mavlink_ftp;
 	MavlinkLogHandler		_mavlink_log_handler;

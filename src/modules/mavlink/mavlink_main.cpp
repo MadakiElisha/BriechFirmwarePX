@@ -103,7 +103,7 @@ bool Mavlink::_boot_complete = false;
 
 Mavlink::Mavlink() :
 	ModuleParams(nullptr),
-	_receiver(*this)
+	_receiver(*this, _crypt)
 {
 	// initialise parameter cache
 	mavlink_update_parameters();

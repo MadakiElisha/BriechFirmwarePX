@@ -30,7 +30,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 ############################################################################
-
+add_subdirectory(crypto)
 add_subdirectory(adsb EXCLUDE_FROM_ALL)
 add_subdirectory(airspeed EXCLUDE_FROM_ALL)
 add_subdirectory(atmosphere EXCLUDE_FROM_ALL)
@@ -45,7 +45,6 @@ add_subdirectory(control_allocation EXCLUDE_FROM_ALL)
 add_subdirectory(controllib EXCLUDE_FROM_ALL)
 add_subdirectory(conversion EXCLUDE_FROM_ALL)
 add_subdirectory(crc EXCLUDE_FROM_ALL)
-add_subdirectory(crypto EXCLUDE_FROM_ALL)
 add_subdirectory(dataman_client EXCLUDE_FROM_ALL)
 add_subdirectory(drivers EXCLUDE_FROM_ALL)
 add_subdirectory(field_sensor_bias_estimator EXCLUDE_FROM_ALL)

@@ -115,6 +115,7 @@ px4_add_module(
 		mavlink_parameters.cpp
 		mavlink_rate_limiter.cpp
 		mavlink_receiver.cpp
+		mavlink_encryption.cpp # Custom encryption for messages
 		mavlink_shell.cpp
 		mavlink_simple_analyzer.cpp
 		mavlink_stream.cpp

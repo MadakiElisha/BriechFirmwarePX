@@ -83,6 +83,7 @@
 #include "mavlink_events.h"
 #include "mavlink_messages.h"
 #include "mavlink_receiver.h"
+#include "mavlink_encryption.h" // Including ENCRYPTION CLASS
 #include "mavlink_shell.h"
 #include "mavlink_ulog.h"
 
@@ -492,6 +493,12 @@ public:
 
 private:
 	MavlinkReceiver 	_receiver;
+
+	/*
+		THIS IS WHERE THE ENCRYPTION CLASS IS ADDED
+	*/
+	MavlinkCrypt _crypt;
+
 
 	int			_instance_id{-1};
 	int			_task_id{-1};

@@ -1,0 +1,5 @@
+menuconfig MODULES_MAVLINK_CRYPTO
+	bool "mavlink_crypto"
+	default n
+	---help---
+		Enable MAVLink encryption module
