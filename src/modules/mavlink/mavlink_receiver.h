@@ -138,7 +138,7 @@ public:
 	void enable_message_statistics() { _message_statistics_enabled = true; }
 	void print_detailed_rx_stats() const;
 
-	void set_crypt(MavlinkCrypt *crypt) { _crypt = crypt};
+	void set_crypt(MavlinkCrypt *crypt) { _crypt = crypt;}
 
 	void request_stop() { _should_exit.store(true); }
 

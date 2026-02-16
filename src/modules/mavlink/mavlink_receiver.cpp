@@ -143,7 +143,45 @@ MavlinkReceiver::acknowledge(uint8_t sysid, uint8_t compid, uint16_t command, ui
 void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
 {
-	PX4_INFO("Recieved message");
+	// 1. Prepare data
+	uint8_t plaintext[16];
+	uint8_t decrypted[16];
+	encrypted_message_s encrypted_output{};
+
+	// Treat the struct as a raw byte array to avoid "member not found" errors
+	uint8_t *enc_ptr = (uint8_t *)&encrypted_output;
+
+	// 2. Create random message
+	for (size_t i = 0; i < 16; i++) {
+		plaintext[i] = (uint8_t)(rand() % 256);
+	}
+
+	// 3. Print Original
+	char hex_orig[64];
+	for (size_t i = 0; i < 16; i++) { sprintf(&hex_orig[i * 3], "%02X ", plaintext[i]); }
+	PX4_INFO("PLAIN: %s", hex_orig);
+
+	// 4. Encrypt (XOR with 0xFF flips all bits)
+	for (size_t i = 0; i < 16; i++) {
+		enc_ptr[i] = plaintext[i] ^ 0xFF;
+	}
+
+	// 5. Print Encrypted
+	char hex_enc[64];
+	for (size_t i = 0; i < 16; i++) { sprintf(&hex_enc[i * 3], "%02X ", enc_ptr[i]); }
+	PX4_INFO("ENCRD: %s", hex_enc);
+
+	// 6. Decrypt (XOR again to flip them back)
+	for (size_t i = 0; i < 16; i++) {
+		decrypted[i] = enc_ptr[i] ^ 0xFF;
+	}
+
+	// 7. Print Decrypted (Should match Original)
+	char hex_dec[64];
+	for (size_t i = 0; i < 16; i++) { sprintf(&hex_dec[i * 3], "%02X ", decrypted[i]); }
+	PX4_INFO("DECRD: %s", hex_dec);
+
+	return;
 
 	switch (msg->msgid) {
 	case MAVLINK_MSG_ID_COMMAND_LONG:
