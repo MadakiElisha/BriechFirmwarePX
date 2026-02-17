@@ -14,11 +14,11 @@ VtolNmpcControl::VtolNmpcControl() :
     memset(_reference_vec, 0, sizeof(_reference_vec));
     memset(_worker_w, 0, sizeof(_worker_w));
 
-    // Initialize controls to hover estimate
-    _state_u_vec[13] = 0.5;  // Throttle
-    _state_u_vec[14] = 0.0;  // Roll moment
-    _state_u_vec[15] = 0.0;  // Pitch moment
-    _state_u_vec[16] = 0.0;  // Yaw moment
+    // Initialize controls: hover thrust, zero moments
+    _state_u_vec[13] = 0.5;   // Collective thrust
+    _state_u_vec[14] = 0.0;   // Roll moment
+    _state_u_vec[15] = 0.0;   // Pitch moment
+    _state_u_vec[16] = 0.0;   // Yaw moment
 }
 
 VtolNmpcControl::~VtolNmpcControl() {
@@ -27,8 +27,7 @@ VtolNmpcControl::~VtolNmpcControl() {
 
 bool VtolNmpcControl::init()
 {
-    // Run at 20 Hz (50ms)
-    ScheduleOnInterval(50000_us);
+    ScheduleOnInterval(50000_us);  // 20 Hz
     PX4_INFO("NMPC Controller initialized (20 Hz)");
     return true;
 }
@@ -43,165 +42,233 @@ void VtolNmpcControl::Run()
 
     parameters_update();
 
-    vehicle_local_position_s pos;
-    vehicle_attitude_s att;
+    vehicle_local_position_s  pos;
+    vehicle_attitude_s         att;
     vehicle_angular_velocity_s ang_vel;
 
-    // Read state from EKF2
-    if (_local_pos_sub.copy(&pos) && _att_sub.copy(&att) && _angular_vel_sub.copy(&ang_vel)) {
-
-        // Update state vector (13 elements)
-        _state_u_vec[0] = pos.x;
-        _state_u_vec[1] = pos.y;
-        _state_u_vec[2] = pos.z;
-        _state_u_vec[3] = pos.vx;
-        _state_u_vec[4] = pos.vy;
-        _state_u_vec[5] = pos.vz;
-        _state_u_vec[6] = att.q[0];  // qw
-        _state_u_vec[7] = att.q[1];  // qx
-        _state_u_vec[8] = att.q[2];  // qy
-        _state_u_vec[9] = att.q[3];  // qz
-        _state_u_vec[10] = ang_vel.xyz[0];  // p
-        _state_u_vec[11] = ang_vel.xyz[1];  // q
-        _state_u_vec[12] = ang_vel.xyz[2];  // r
-
-        // Update reference from setpoint
-        update_reference();
-
-        // Solve NMPC
-        const uint64_t t_start = hrt_absolute_time();
-        optimize();
-        const uint64_t solver_time = hrt_absolute_time() - t_start;
-
-        // Publish actuator commands
-        actuator_motors_s out{};
-        out.timestamp = hrt_absolute_time();
-
-        for (int i = 0; i < 4; i++) {
-            float val = (float)_state_u_vec[13 + i];
-            out.control[i] = PX4_ISFINITE(val) ? math::constrain(val, 0.0f, 1.0f) : 0.0f;
-        }
-
-        _actuator_motors_pub.publish(out);
-
-        // Periodic logging (every 1 second)
-        if (_loop_counter % 20 == 0) {
-		PX4_INFO("NMPC: pos=[%.2f,%.2f,%.2f] ref=[%.2f,%.2f,%.2f] u=[%.3f,%.3f,%.3f,%.3f] dt=%llu us",
-			(double)_state_u_vec[0], (double)_state_u_vec[1], (double)_state_u_vec[2],
-			(double)_reference_vec[0], (double)_reference_vec[1], (double)_reference_vec[2],
-			(double)_state_u_vec[13], (double)_state_u_vec[14],
-			(double)_state_u_vec[15], (double)_state_u_vec[16],
-			(unsigned long long)solver_time);  // Add cast here
-	}
-        _loop_counter++;
+    if (!_local_pos_sub.copy(&pos) ||
+        !_att_sub.copy(&att)       ||
+        !_angular_vel_sub.copy(&ang_vel)) {
+        return;  // No valid state yet
     }
+
+    // ── 1. State vector ──────────────────────────────────────────────────────
+    _state_u_vec[0]  = pos.x;
+    _state_u_vec[1]  = pos.y;
+    _state_u_vec[2]  = pos.z;
+    _state_u_vec[3]  = pos.vx;
+    _state_u_vec[4]  = pos.vy;
+    _state_u_vec[5]  = pos.vz;
+    _state_u_vec[6]  = att.q[0];         // qw
+    _state_u_vec[7]  = att.q[1];         // qx
+    _state_u_vec[8]  = att.q[2];         // qy
+    _state_u_vec[9]  = att.q[3];         // qz
+    _state_u_vec[10] = ang_vel.xyz[0];   // p  (roll  rate)
+    _state_u_vec[11] = ang_vel.xyz[1];   // q  (pitch rate)
+    _state_u_vec[12] = ang_vel.xyz[2];   // r  (yaw   rate)
+
+    // ── 2. Reference ─────────────────────────────────────────────────────────
+    update_reference();
+
+    // ── 3. NMPC optimisation ─────────────────────────────────────────────────
+    const uint64_t t_start = hrt_absolute_time();
+    optimize();
+    const uint64_t solver_time = hrt_absolute_time() - t_start;
+
+    // ── 4. Motor mixing & publish ─────────────────────────────────────────────
+    // _state_u_vec[13] = collective thrust  T   (0 → 1)
+    // _state_u_vec[14] = roll  moment       Mx  (-1 → 1)
+    // _state_u_vec[15] = pitch moment       My  (-1 → 1)
+    // _state_u_vec[16] = yaw  moment        Mz  (-1 → 1)
+    //
+    // X-configuration quadrotor:
+    //
+    //        front
+    //    M1 (CCW)  M2 (CW)
+    //       \      /
+    //        \    /
+    //    M3 (CW)  M4 (CCW)
+    //        back
+    //
+    //  M1 = T + Mx + My - Mz   (front-left)
+    //  M2 = T - Mx + My + Mz   (front-right)
+    //  M3 = T + Mx - My + Mz   (rear-left)
+    //  M4 = T - Mx - My - Mz   (rear-right)
+
+    const float T  = (float)_state_u_vec[13];
+    const float Mx = (float)_state_u_vec[14];
+    const float My = (float)_state_u_vec[15];
+    const float Mz = (float)_state_u_vec[16];
+
+    actuator_motors_s out{};
+    out.timestamp        = hrt_absolute_time();
+    out.timestamp_sample = out.timestamp;
+
+    out.control[0] = math::constrain(T + Mx + My - Mz, 0.0f, 1.0f);  // M1 front-left
+    out.control[1] = math::constrain(T - Mx + My + Mz, 0.0f, 1.0f);  // M2 front-right
+    out.control[2] = math::constrain(T + Mx - My + Mz, 0.0f, 1.0f);  // M3 rear-left
+    out.control[3] = math::constrain(T - Mx - My - Mz, 0.0f, 1.0f);  // M4 rear-right
+
+    // Safety: if any NaN slip through, cut motors
+    for (int i = 0; i < 4; i++) {
+        if (!PX4_ISFINITE(out.control[i])) out.control[i] = 0.0f;
+    }
+
+    out.reversible_flags = 0;
+    _actuator_motors_pub.publish(out);
+
+    // ── 5. Periodic log ───────────────────────────────────────────────────────
+    if (_loop_counter % 20 == 0) {
+        PX4_INFO("NMPC pos=[%.2f,%.2f,%.2f] ref=[%.2f,%.2f,%.2f] "
+                 "u=[T:%.3f Mx:%.3f My:%.3f Mz:%.3f] "
+                 "M=[%.3f,%.3f,%.3f,%.3f] dt=%llu us",
+                 (double)_state_u_vec[0],  (double)_state_u_vec[1],  (double)_state_u_vec[2],
+                 (double)_reference_vec[0],(double)_reference_vec[1],(double)_reference_vec[2],
+                 (double)T, (double)Mx, (double)My, (double)Mz,
+                 (double)out.control[0], (double)out.control[1],
+                 (double)out.control[2], (double)out.control[3],
+                 (unsigned long long)solver_time);
+    }
+    _loop_counter++;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 void VtolNmpcControl::update_reference()
 {
     trajectory_setpoint_s sp;
 
     if (_setpoint_sub.copy(&sp)) {
-        // Position reference (cast float to double)
+
         _reference_vec[0] = PX4_ISFINITE(sp.position[0]) ? (double)sp.position[0] : _state_u_vec[0];
         _reference_vec[1] = PX4_ISFINITE(sp.position[1]) ? (double)sp.position[1] : _state_u_vec[1];
         _reference_vec[2] = PX4_ISFINITE(sp.position[2]) ? (double)sp.position[2] : _state_u_vec[2];
 
-        // Velocity reference
         _reference_vec[3] = PX4_ISFINITE(sp.velocity[0]) ? (double)sp.velocity[0] : 0.0;
         _reference_vec[4] = PX4_ISFINITE(sp.velocity[1]) ? (double)sp.velocity[1] : 0.0;
         _reference_vec[5] = PX4_ISFINITE(sp.velocity[2]) ? (double)sp.velocity[2] : 0.0;
 
-        // Attitude reference (convert yaw to quaternion, assume level)
         if (PX4_ISFINITE(sp.yaw)) {
-            float cos_yaw = cosf(sp.yaw * 0.5f);
-            float sin_yaw = sinf(sp.yaw * 0.5f);
-            _reference_vec[6] = (double)cos_yaw;   // qw
-            _reference_vec[7] = 0.0;               // qx
-            _reference_vec[8] = 0.0;               // qy
-            _reference_vec[9] = (double)sin_yaw;   // qz
+            const float cy = cosf(sp.yaw * 0.5f);
+            const float sy = sinf(sp.yaw * 0.5f);
+            _reference_vec[6] = (double)cy;
+            _reference_vec[7] = 0.0;
+            _reference_vec[8] = 0.0;
+            _reference_vec[9] = (double)sy;
         } else {
-            // Use current attitude as reference
             _reference_vec[6] = _state_u_vec[6];
             _reference_vec[7] = _state_u_vec[7];
             _reference_vec[8] = _state_u_vec[8];
             _reference_vec[9] = _state_u_vec[9];
         }
 
-        // Angular rate reference (typically zero)
         _reference_vec[10] = 0.0;
         _reference_vec[11] = 0.0;
         _reference_vec[12] = PX4_ISFINITE(sp.yawspeed) ? (double)sp.yawspeed : 0.0;
+
     } else {
-        // No setpoint - hold current position
-        for (int i = 0; i < 13; i++) {
-            _reference_vec[i] = _state_u_vec[i];
-        }
-        // Zero velocity/rates
-        _reference_vec[3] = 0.0;
-        _reference_vec[4] = 0.0;
-        _reference_vec[5] = 0.0;
-        _reference_vec[10] = 0.0;
-        _reference_vec[11] = 0.0;
-        _reference_vec[12] = 0.0;
+        // No setpoint → hold current state
+        for (int i = 0; i < 13; i++) _reference_vec[i] = _state_u_vec[i];
+        _reference_vec[3] = _reference_vec[4] = _reference_vec[5]  = 0.0;
+        _reference_vec[10]= _reference_vec[11]= _reference_vec[12] = 0.0;
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NMPC optimise:
+//   Step A – call the CasADi cost function once to get current cost.
+//   Step B – numerical gradient  ∂J/∂u  via finite differences.
+//   Step C – direct proportional correction from state error   (fast path).
+//   Step D – gradient-descent refinement with momentum         (NMPC path).
+//   Both paths are blended so the drone responds immediately AND the
+//   CasADi solver keeps pulling the solution toward optimality.
+// ─────────────────────────────────────────────────────────────────────────────
 void VtolNmpcControl::optimize()
 {
-    const int max_qp_iters = 10;
-    const casadi_real alpha = 0.1;     // Learning rate
-    const casadi_real eps = 1e-4;       // Gradient epsilon
-    const casadi_real momentum = 0.9;   // Momentum factor
+    // ── Tuning knobs ─────────────────────────────────────────────────────────
+    constexpr double KP_Z   =  0.35;   // Altitude proportional gain
+    constexpr double KD_Z   =  0.15;   // Altitude derivative  gain
+    constexpr double KP_XY  =  0.12;   // Horizontal position  gain
+    constexpr double KD_XY  =  0.06;   // Horizontal velocity  gain
+    constexpr double ALPHA   =  0.25;   // Gradient descent step
+    constexpr double MOMENTUM=  0.85;
+    constexpr double EPS     =  1e-3;   // Finite-difference step
+    constexpr int    N_ITER  =  12;     // GD iterations per cycle
+    constexpr double BLEND   =  0.4;    // 0=pure PD, 1=pure GD
 
-    casadi_real current_cost = 0;
-    casadi_real perturbed_cost = 0;
-    casadi_real grad[4] = {0};
+    // ── Errors (NED: z negative = altitude) ──────────────────────────────────
+    const double ez  = _reference_vec[2] - _state_u_vec[2];   // +  = need to climb
+    const double evz = _reference_vec[5] - _state_u_vec[5];   // desired – actual vz
+    const double ex  = _reference_vec[0] - _state_u_vec[0];
+    const double ey  = _reference_vec[1] - _state_u_vec[1];
+    const double evx = _reference_vec[3] - _state_u_vec[3];
+    const double evy = _reference_vec[4] - _state_u_vec[4];
 
-    // Solver expects: arg[0] = z[17], arg[1] = x_ref[13]
-    const casadi_real* arg[2] = {_state_u_vec, _reference_vec};  // FIXED!
-    casadi_real* res[1] = {&current_cost};
+    // ── Step C: Direct PD control law ────────────────────────────────────────
+    // Altitude: climb when ez < 0  (ref is more negative → higher)
+    const double thrust_pd = 0.5 - KP_Z * ez - KD_Z * evz;
 
-    // Evaluate current cost
+    // Horizontal: tilt toward target (small angle assumption)
+    // In NED body frame: positive pitch = nose down = +x acceleration
+    const double pitch_pd  =  KP_XY * ex + KD_XY * evx;   // fwd error  → nose down
+    const double roll_pd   = -KP_XY * ey - KD_XY * evy;   // right error → roll right
+
+    // ── Step A: CasADi cost evaluation ───────────────────────────────────────
+    casadi_real current_cost  = 0.0;
+    casadi_real perturbed_cost= 0.0;
+    casadi_real grad[4]       = {0.0, 0.0, 0.0, 0.0};
+
+    const casadi_real* arg[2] = {_state_u_vec, _reference_vec};
+    casadi_real* res[1]       = {&current_cost};
     solver_fun(arg, res, nullptr, _worker_w, 0);
 
-    // Compute gradient via finite differences
+    // ── Step B: Numerical gradient ∂J/∂u ─────────────────────────────────────
     for (int i = 0; i < 4; i++) {
-        int idx = 13 + i;
-        casadi_real original_u = _state_u_vec[idx];
-        _state_u_vec[idx] += eps;
+        const int     idx  = 13 + i;
+        const casadi_real saved = _state_u_vec[idx];
+        _state_u_vec[idx] += EPS;
 
-        casadi_real* res_perturbed[1] = {&perturbed_cost};
-        solver_fun(arg, res_perturbed, nullptr, _worker_w, 0);
+        casadi_real* rp[1] = {&perturbed_cost};
+        solver_fun(arg, rp, nullptr, _worker_w, 0);
 
-        grad[i] = (perturbed_cost - current_cost) / eps;
-        _state_u_vec[idx] = original_u;
+        grad[i]           = (perturbed_cost - current_cost) / EPS;
+        _state_u_vec[idx] = saved;
     }
 
-    // Gradient descent with momentum
-    for (int qp_i = 0; qp_i < max_qp_iters; qp_i++) {
+    // ── Step D: Gradient-descent with momentum ────────────────────────────────
+    for (int k = 0; k < N_ITER; k++) {
         for (int i = 0; i < 4; i++) {
-            int idx = 13 + i;
-            _velocity[i] = (momentum * _velocity[i]) - (alpha * grad[i]);
-            _state_u_vec[idx] += _velocity[i];
-
-            // Apply bounds [0, 1]
-            if (_state_u_vec[idx] > 1.0) {
-                _state_u_vec[idx] = 1.0;
-                _velocity[i] = 0;
-            }
-            if (_state_u_vec[idx] < 0.0) {
-                _state_u_vec[idx] = 0.0;
-                _velocity[i] = 0;
-            }
+            _velocity[i] = MOMENTUM * _velocity[i] - ALPHA * grad[i];
         }
     }
+
+    // Desired from GD step
+    const double thrust_gd = _state_u_vec[13] + _velocity[0];
+    const double roll_gd   = _state_u_vec[14] + _velocity[1];
+    const double pitch_gd  = _state_u_vec[15] + _velocity[2];
+    const double yaw_gd    = _state_u_vec[16] + _velocity[3];
+
+    // ── Blend PD (immediate response) + GD (optimal) ─────────────────────────
+    const double thrust_cmd = (1.0 - BLEND) * thrust_pd + BLEND * thrust_gd;
+    const double roll_cmd   = (1.0 - BLEND) * roll_pd   + BLEND * roll_gd;
+    const double pitch_cmd  = (1.0 - BLEND) * pitch_pd  + BLEND * pitch_gd;
+    const double yaw_cmd    = yaw_gd;   // yaw only from GD (no PD yaw yet)
+
+    // ── Smooth update (low-pass, avoid step changes) ──────────────────────────
+    constexpr double LP = 0.35;   // Low-pass coefficient
+    _state_u_vec[13] += LP * (thrust_cmd - _state_u_vec[13]);
+    _state_u_vec[14] += LP * (roll_cmd   - _state_u_vec[14]);
+    _state_u_vec[15] += LP * (pitch_cmd  - _state_u_vec[15]);
+    _state_u_vec[16] += LP * (yaw_cmd    - _state_u_vec[16]);
+
+    // ── Hard bounds ───────────────────────────────────────────────────────────
+    _state_u_vec[13] = fmax(0.05, fmin(0.95, _state_u_vec[13]));  // thrust 5-95%
+    _state_u_vec[14] = fmax(-0.3, fmin(0.3,  _state_u_vec[14]));  // roll  ±30%
+    _state_u_vec[15] = fmax(-0.3, fmin(0.3,  _state_u_vec[15]));  // pitch ±30%
+    _state_u_vec[16] = fmax(-0.2, fmin(0.2,  _state_u_vec[16]));  // yaw   ±20%
 }
 
-void VtolNmpcControl::parameters_update()
-{
-    updateParams();
-}
+// ─────────────────────────────────────────────────────────────────────────────
+void VtolNmpcControl::parameters_update() { updateParams(); }
 
 int VtolNmpcControl::task_spawn(int argc, char *argv[]) {
     VtolNmpcControl *instance = new VtolNmpcControl();
@@ -210,7 +277,6 @@ int VtolNmpcControl::task_spawn(int argc, char *argv[]) {
         _task_id = task_id_is_work_queue;
         if (instance->init()) return 0;
     }
-
     delete instance;
     _object.store(nullptr);
     _task_id = -1;
@@ -218,9 +284,7 @@ int VtolNmpcControl::task_spawn(int argc, char *argv[]) {
 }
 
 int VtolNmpcControl::print_usage(const char *reason) {
-    if (reason) {
-        PX4_WARN("%s\n", reason);
-    }
+    if (reason) PX4_WARN("%s\n", reason);
     PRINT_MODULE_DESCRIPTION("VTOL NMPC Control");
     PRINT_MODULE_USAGE_NAME("vtol_nmpc_control", "controller");
     PRINT_MODULE_USAGE_COMMAND("start");

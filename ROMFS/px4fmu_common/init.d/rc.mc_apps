@@ -1,47 +1,41 @@
 #!/bin/sh
 #
-# Standard apps for multirotors. Attitude/Position estimator, Attitude/Position control.
-#
-# NOTE: Script variables are declared/initialized/unset in the rcS script.
+# Standard apps for multirotors.
+# Optimized to switch between traditional PID and custom NMPC.
 #
 
-#
-# Start Control Allocator
-#
+# 1. Start common infrastructure required by both systems
 control_allocator start
-
-#
-# Start Multicopter Rate Controller.
-#
-mc_rate_control start
-
-#
-# Start Multicopter Attitude Controller.
-#
-mc_att_control start
-
-if param greater -s MC_AT_EN 0
-then
-	mc_autotune_attitude_control start
-fi
-
-#
-# Start Multicopter Position Controller.
-#
+land_detector start multicopter
 mc_hover_thrust_estimator start
 flight_mode_manager start
-mc_pos_control start
 
-#
-# Start Multicopter Land Detector.
-#
-land_detector start multicopter
+# 2. Branching Logic: NMPC vs Traditional PID
+if param compare USE_NMPC 1
+then
+	# INDUSTRY STANDARD: If NMPC is running, it handles Pos and Att.
+	# Since your code outputs raw actuator_motors, we skip rate_control too.
+	echo "NMPC: Starting Nonlinear Model Predictive Control"
+	vtol_nmpc_control start
+else
+	# TRADITIONAL PID STACK
+	echo "NMPC: Using traditional PID control stack"
 
+	mc_rate_control start
+	mc_att_control start
+	mc_pos_control start
+
+	if param greater -s MC_AT_EN 0
+	then
+		mc_autotune_attitude_control start
+	fi
+fi
+
+# 3. Start Optional Research/Experimental Modules
 if param compare -s MC_NN_EN 1
 then
 	mc_nn_control start
 fi
-
 
 if param compare -s MC_RAPTOR_ENABLE 1
 then
