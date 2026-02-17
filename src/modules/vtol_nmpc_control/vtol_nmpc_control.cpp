@@ -295,7 +295,10 @@ int VtolNmpcControl::print_usage(const char *reason) {
 int VtolNmpcControl::custom_command(int argc, char *argv[]) {
     return print_usage("unknown command");
 }
-
+// blah blah
 extern "C" __EXPORT int vtol_nmpc_control_main(int argc, char *argv[]) {
     return VtolNmpcControl::main(argc, argv);
 }
+
+
+
