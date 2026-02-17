@@ -1,0 +1,28 @@
+module_name: VTOL NMPC Control
+
+parameters:
+    - group: VTOL NMPC
+      definitions:
+          USE_NMPC:
+              description:
+                  short: Enable NMPC control
+              type: boolean
+              default: 0
+
+          NMPC_N_STEPS:
+              description:
+                  short: NMPC prediction horizon
+              type: int32
+              min: 5
+              max: 50
+              default: 20
+
+          NMPC_DT:
+              description:
+                  short: NMPC sample time
+              type: float
+              min: 0.01
+              max: 0.2
+              unit: s
+              decimal: 3
+              default: 0.05
