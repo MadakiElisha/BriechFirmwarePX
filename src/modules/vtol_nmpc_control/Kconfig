@@ -1,0 +1,7 @@
+menuconfig MODULES_VTOL_NMPC_CONTROL
+	bool "VTOL NMPC Controller"
+	default n
+	select MODULES_PX4_WORK_QUEUE
+	---help---
+		Industry-standard NMPC controller replacing PID loops.
+		Uses CasADi generated C-code for real-time VTOL optimization.
