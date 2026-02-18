@@ -5,7 +5,8 @@
 MavlinkCrypt::MavlinkCrypt() :
 	_encryption_count(0),
 	_decrypted_count(0),
-	_auth_failures(0)
+	_auth_failures(0),
+	_state(crypt_state::UNINITIALIZED)
 {
 	memset(&_aes_ctx, 0, sizeof(_aes_ctx));
 	memset(_encryption_key, 0, sizeof(_encryption_key));
@@ -34,3 +35,5 @@ int MavlinkCrypt::decrypt_msg(
 {
 	return 1;
 }
+
+

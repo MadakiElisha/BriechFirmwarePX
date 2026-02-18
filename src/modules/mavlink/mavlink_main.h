@@ -492,9 +492,7 @@ public:
 	bool radio_status_critical() const { return _radio_status_critical; }
 
 private:
-	/*
-		THIS IS WHERE THE ENCRYPTION CLASS IS ADDED
-	*/
+	//	THIS IS WHERE THE ENCRYPTION CLASS IS ADDED
 	MavlinkCrypt *_crypt{nullptr};
 	MavlinkReceiver 	_receiver;
 

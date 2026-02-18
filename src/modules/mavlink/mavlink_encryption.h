@@ -24,6 +24,13 @@ struct encrypted_message_s {
     uint8_t  tag[AES_TAG_SIZE];
 };
 
+enum class crypt_state{
+	UNINITIALIZED,
+	INITIALIZED,
+	HANDHAKING,
+	READY
+};
+
 
 class MavlinkCrypt
 {
@@ -49,6 +56,8 @@ class MavlinkCrypt
 		uint32_t _encryption_count;
 		uint32_t _decrypted_count;
 		uint32_t _auth_failures;
+
+		crypt_state _state;
 
 		void load_encryption_key();
 		void generate_random_iv(uint8_t *iv);
