@@ -58,23 +58,23 @@ set_source_files_properties(${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_UAVIONIX}/$
 
 
 # generate encryption dialect
-set(MAVLINK_DIALECT_ENCR "encr_dialect")
-add_custom_command(
-        OUTPUT ${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}/${MAVLINK_DIALECT_ENCR}.h
-        COMMAND
-                ${PYTHON_EXECUTABLE} ${MAVLINK_GIT_DIR}/pymavlink/tools/mavgen.py
-                        --lang C --wire-protocol 2.0
-                        --output ${MAVLINK_LIBRARY_DIR}
-                        ${MAVLINK_GIT_DIR}/message_definitions/v1.0/${MAVLINK_DIALECT_ENCR}.xml > ${CMAKE_CURRENT_BINARY_DIR}/mavgen_${MAVLINK_DIALECT_ENCR}.log
-        DEPENDS
-                git_mavlink_v2
-                ${MAVLINK_GIT_DIR}/pymavlink/tools/mavgen.py
-                ${MAVLINK_GIT_DIR}/message_definitions/v1.0/${MAVLINK_DIALECT_ENCR}.xml
+# set(MAVLINK_DIALECT_ENCR "encr_dialect")
+# add_custom_command(
+#         OUTPUT ${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}/${MAVLINK_DIALECT_ENCR}.h
+#         COMMAND
+#                 ${PYTHON_EXECUTABLE} ${MAVLINK_GIT_DIR}/pymavlink/tools/mavgen.py
+#                         --lang C --wire-protocol 2.0
+#                         --output ${MAVLINK_LIBRARY_DIR}
+#                         ${MAVLINK_GIT_DIR}/message_definitions/v1.0/${MAVLINK_DIALECT_ENCR}.xml > ${CMAKE_CURRENT_BINARY_DIR}/mavgen_${MAVLINK_DIALECT_ENCR}.log
+#         DEPENDS
+#                 git_mavlink_v2
+#                 ${MAVLINK_GIT_DIR}/pymavlink/tools/mavgen.py
+#                 ${MAVLINK_GIT_DIR}/message_definitions/v1.0/${MAVLINK_DIALECT_ENCR}.xml
 
-        COMMENT "Generating Mavlink Custom: ${MAVLINK_GIT_DIR_RELATIVE}/message_definitions/v1.0/${MAVLINK_DIALECT_ENCR}.xml"
-)
-add_custom_target(mavlink_c_generate_custom DEPENDS ${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}/${MAVLINK_DIALECT_ENCR}.h)
-set_source_files_properties(${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}/${MAVLINK_DIALECT_ENCR}.h PROPERTIES GENERATED true)
+#         COMMENT "Generating Mavlink Custom: ${MAVLINK_GIT_DIR_RELATIVE}/message_definitions/v1.0/${MAVLINK_DIALECT_ENCR}.xml"
+# )
+# add_custom_target(mavlink_c_generate_custom DEPENDS ${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}/${MAVLINK_DIALECT_ENCR}.h)
+# set_source_files_properties(${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}/${MAVLINK_DIALECT_ENCR}.h PROPERTIES GENERATED true)
 
 
 # generate the primary dialect
@@ -109,7 +109,7 @@ target_sources(mavlink_c
 	INTERFACE
 		${MAVLINK_LIBRARY_DIR}/${CONFIG_MAVLINK_DIALECT}/${CONFIG_MAVLINK_DIALECT}.h
 		${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_UAVIONIX}/${MAVLINK_DIALECT_UAVIONIX}.h
-		${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}/${MAVLINK_DIALECT_ENCR}.h # Adding the encryption dialect to the build dir
+		# ${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}/${MAVLINK_DIALECT_ENCR}.h # Adding the encryption dialect to the build dir
 )
 target_include_directories(mavlink_c
 	INTERFACE
@@ -117,16 +117,24 @@ target_include_directories(mavlink_c
 		${MAVLINK_LIBRARY_DIR}/../
 		${MAVLINK_LIBRARY_DIR}/${CONFIG_MAVLINK_DIALECT}
 		${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_UAVIONIX}
-		${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}  # Adding the encryption dialect to the build dir
+		# ${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}  # Adding the encryption dialect to the build dir
 )
 
 # Add mbedtls include directory to the entire MAVLink directory scope
 include_directories(${PX4_SOURCE_DIR}/src/lib/crypto/mbedtls/include)
 
+if(CONFIG_MAVLINK_DIALECT)
+	set(MAVLINK_DIALECT ${CONFIG_MAVNLINK_DIALECT})
+else()
+	set(MAVLINK_DIALECT "common")
+endif()
+
+
 px4_add_module(
 	MODULE modules__mavlink
 	MAIN mavlink
 	COMPILE_FLAGS
+		-DMAVLINK_DIALECT=${MAVLINK_DIALECT}
 		-Wno-enum-compare # ROTATION <-> MAV_SENSOR_ROTATION
 		#-DDEBUG_BUILD
 	SRCS
