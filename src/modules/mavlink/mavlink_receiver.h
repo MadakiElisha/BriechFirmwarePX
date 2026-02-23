@@ -52,6 +52,8 @@
 #include "tune_publisher.h"
 
 #include "mavlink_encryption.h" // Includes the encryption class for decryption
+#include <encr_dialect/mavlink.h>
+#include <encr_dialect/encr_dialect.h> // Includes the custom messages
 
 #include <geo/geo.h>
 #include <lib/drivers/accelerometer/PX4Accelerometer.hpp>

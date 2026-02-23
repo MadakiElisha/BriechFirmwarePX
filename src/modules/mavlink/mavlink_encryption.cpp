@@ -1,12 +1,12 @@
 #include "mavlink_encryption.h"
-#include <stdlib.h>
-#include <time.h>
 
-MavlinkCrypt::MavlinkCrypt() :
+
+MavlinkCrypt::MavlinkCrypt(Mavlink *parent) :
 	_encryption_count(0),
 	_decrypted_count(0),
 	_auth_failures(0),
-	_state(crypt_state::UNINITIALIZED)
+	_state(crypt_state::UNINITIALIZED),
+	_mavlink(parent)
 {
 	memset(&_aes_ctx, 0, sizeof(_aes_ctx));
 	memset(_encryption_key, 0, sizeof(_encryption_key));
@@ -36,4 +36,7 @@ int MavlinkCrypt::decrypt_msg(
 	return 1;
 }
 
-
+void MavlinkCrypt::initiate_handshake(){
+	// mavlink_log_info(&_handshake_pub, "[HS]");
+	return;
+}

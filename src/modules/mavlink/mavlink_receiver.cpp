@@ -142,16 +142,22 @@ MavlinkReceiver::acknowledge(uint8_t sysid, uint8_t compid, uint16_t command, ui
 
 void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
-{
-	switch(msg->msgid){
-		case MAVLINK_MSG_ID_TUNNEL:
-			PX4_INFO("Received message, standby for description");
-		break;
-		default:
-		break;
-	}
+{  //commented this out for connection - temp
+	//if (_crypt->state() == crypt_state::UNINITIALIZED){
+		//if (msg->msgid == MAVLINK_MSG_ID_TUNNEL){
+		//	PX4_INFO("Received a request to connect, initiating handshake");
+		//	_crypt->initiate_handshake();
+		//}
+		//if (msg->msgid != MAVLINK_MSG_ID_HEARTBEAT) return; // Only allows heartbeat messages past
+
+	//}
+	PX4_INFO("[DEBUGGING] Got msg ID: %u from Sys: %u", msg->msgid, msg->sysid);
 
 	switch (msg->msgid) {
+	// For encryption
+	case MAVLINK_MSG_ID_KEY_EXCHANGE_REQUEST:
+		PX4_INFO("We have received a request for handshake, huzzah");
+		break;
 	case MAVLINK_MSG_ID_COMMAND_LONG:
 		handle_message_command_long(msg);
 		break;

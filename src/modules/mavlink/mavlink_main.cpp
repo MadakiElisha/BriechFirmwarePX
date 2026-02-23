@@ -2280,7 +2280,7 @@ Mavlink::task_main(int argc, char *argv[])
 		// Initialize encryption class
 		// Only Initialize Encryption class for the necessary Telemetry ports
 		if(_instance_id == 0){
-			_crypt = new MavlinkCrypt();
+			_crypt = new MavlinkCrypt(this);
 			_receiver.set_crypt(_crypt);
 		}
 

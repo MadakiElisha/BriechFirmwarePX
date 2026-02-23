@@ -2,9 +2,14 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
 
 // Including the mbedTLS crypto lib
 #include <mbedtls/gcm.h>
+
+
+// To gain access to PX4_INFO and the like
 #include <px4_platform_common/log.h>
 
 // Encryption constants
@@ -31,11 +36,13 @@ enum class crypt_state{
 	READY
 };
 
+class Mavlink; // Creating a class that will be used to create the null pointer which will point to the mavlink class on startup
+
 
 class MavlinkCrypt
 {
 	public:
-		MavlinkCrypt();
+		MavlinkCrypt(Mavlink *parent);
 		~MavlinkCrypt();
 
 		int encrypt_msg(
@@ -50,6 +57,12 @@ class MavlinkCrypt
 			size_t *plaintext_len
 		);
 
+		void initiate_handshake();
+
+		crypt_state state(){
+			return _state;
+		}
+
 	private:
 		mbedtls_gcm_context _aes_ctx;
 		uint8_t _encryption_key[AES_KEY_SIZE];
@@ -58,8 +71,10 @@ class MavlinkCrypt
 		uint32_t _auth_failures;
 
 		crypt_state _state;
+		Mavlink *_mavlink{nullptr};
+		// orb_advert_t _handshake_pub = nullptr;
 
-		void load_encryption_key();
-		void generate_random_iv(uint8_t *iv);
+		// void _load_encryption_key();
+		// void _generate_random_iv(uint8_t *iv);
 
 };
