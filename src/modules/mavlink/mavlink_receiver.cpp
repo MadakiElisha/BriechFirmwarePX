@@ -156,7 +156,13 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	switch (msg->msgid) {
 	// For encryption
 	case MAVLINK_MSG_ID_KEY_EXCHANGE_REQUEST:
-		PX4_INFO("We have received a request for handshake, huzzah");
+		PX4_INFO("[The Bugger] We have received a request for handshake, huzzah");
+		break;
+	case MAVLINK_MSG_ID_KEY_EXCHANGE_DATA:
+		PX4_INFO("[The Bugger] We've just received a password, its not 1234");
+		break;
+	case MAVLINK_MSG_ID_KEY_EXCHANGE_CONFIRM:
+		PX4_INFO("[The Bugger] Someone messed up!!!");
 		break;
 	case MAVLINK_MSG_ID_COMMAND_LONG:
 		handle_message_command_long(msg);
