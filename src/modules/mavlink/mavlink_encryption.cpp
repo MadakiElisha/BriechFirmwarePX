@@ -1,23 +1,17 @@
+#include "mavlink_main.h"
 #include "mavlink_encryption.h"
 
-
 MavlinkCrypt::MavlinkCrypt(Mavlink *parent) :
-	_encryption_count(0),
-	_decrypted_count(0),
-	_auth_failures(0),
 	_state(crypt_state::UNINITIALIZED),
 	_mavlink(parent)
 {
-	memset(&_aes_ctx, 0, sizeof(_aes_ctx));
-	memset(_encryption_key, 0, sizeof(_encryption_key));
 
+	_state = crypt_state::INITIALIZING;
 	// PX4_INFO("MavLinkCrypt constructed");
 }
 
 MavlinkCrypt::~MavlinkCrypt()
 {
-	mbedtls_gcm_free(&_aes_ctx);
-	memset(_encryption_key, 0, AES_KEY_SIZE);
 }
 
 int MavlinkCrypt::encrypt_msg(
@@ -36,7 +30,67 @@ int MavlinkCrypt::decrypt_msg(
 	return 1;
 }
 
-void MavlinkCrypt::initiate_handshake(){
-	// mavlink_log_info(&_handshake_pub, "[HS]");
+void MavlinkCrypt::initiate_handshake()
+{
+	if(_generate_key_pair()) PX4_INFO("[DBugger] Generated keypair no prob");
+	_send_public_key();
 	return;
+}
+
+bool MavlinkCrypt::_generate_key_pair()
+{
+    size_t olen = 0;
+    mbedtls_ecdh_init(&_ctx);
+    mbedtls_entropy_init(&_entropy);
+    mbedtls_ctr_drbg_init(&_ctr_drbg);
+
+
+    int ret = 0;
+
+    // 1. Seed the RNG
+    hrt_abstime now = hrt_absolute_time();
+    mbedtls_ctr_drbg_update(&_ctr_drbg, (const unsigned char *)&now, sizeof(now));
+
+    // 2. Select curve
+    ret = mbedtls_ecdh_setup(&_ctx, MBEDTLS_ECP_DP_CURVE25519);
+    if (ret != 0) {
+        PX4_ERR("ECDH Setup failed: -0x%04x", -ret);
+        return false;
+    }
+
+    // 3. Generate key pair
+    ret = mbedtls_ecdh_make_public(&_ctx, &olen, _public_key, sizeof(_public_key),
+                                   mbedtls_ctr_drbg_random, &_ctr_drbg);
+
+    if (ret != 0) {
+        PX4_ERR("Make Public failed: -0x%04x", -ret);
+        return false;
+    }
+
+    PX4_INFO("Key generated successfully, length: %zu", olen);
+    return true;
+}
+
+bool MavlinkCrypt::_send_public_key(){
+	if (_mavlink) {
+		mavlink_msg_key_exchange_data_send(
+			_mavlink->get_channel(),
+			255,
+			190,
+			_public_key
+		);
+
+		PX4_INFO("[DBugger] Should have sent public key");
+		print_key(_public_key, 32);
+    	}
+	return 1;
+}
+
+void MavlinkCrypt::print_key(uint8_t* key, size_t len) {
+    printf("Key: ");
+    for (size_t i = 0; i < len; i++) {
+        // %02x prints hex with 2 digits and a leading zero if needed
+        printf("%02x", key[i]);
+    }
+    printf("\n");
 }

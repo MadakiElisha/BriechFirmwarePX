@@ -8,9 +8,15 @@
 // Including the mbedTLS crypto lib
 #include <mbedtls/gcm.h>
 
+#include "mbedtls/ecdh.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+
 
 // To gain access to PX4_INFO and the like
 #include <px4_platform_common/log.h>
+#include <px4_platform_common/time.h>
+#include <mavlink/encr_dialect/mavlink.h>
 
 // Encryption constants
 #define AES_KEY_SIZE 32        // 256 bits
@@ -29,10 +35,10 @@ struct encrypted_message_s {
     uint8_t  tag[AES_TAG_SIZE];
 };
 
-enum class crypt_state{
+enum class crypt_state : uint8_t{
 	UNINITIALIZED,
-	INITIALIZED,
-	HANDHAKING,
+	INITIALIZING,
+	HANDSHAKING,
 	READY
 };
 
@@ -64,17 +70,19 @@ class MavlinkCrypt
 		}
 
 	private:
-		mbedtls_gcm_context _aes_ctx;
-		uint8_t _encryption_key[AES_KEY_SIZE];
-		uint32_t _encryption_count;
-		uint32_t _decrypted_count;
-		uint32_t _auth_failures;
+		unsigned char _public_key[32];
+		unsigned char _shared_secret[32];
 
 		crypt_state _state;
 		Mavlink *_mavlink{nullptr};
 		// orb_advert_t _handshake_pub = nullptr;
 
-		// void _load_encryption_key();
-		// void _generate_random_iv(uint8_t *iv);
+		// For generating keys
+		mbedtls_ecdh_context _ctx;
+		mbedtls_ctr_drbg_context _ctr_drbg;
+		mbedtls_entropy_context _entropy;
+		bool _generate_key_pair();
+		bool _send_public_key();
+		void print_key(uint8_t* key, size_t len);
 
 };

@@ -142,28 +142,61 @@ MavlinkReceiver::acknowledge(uint8_t sysid, uint8_t compid, uint16_t command, ui
 
 void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
-{  //commented this out for connection - temp
-	//if (_crypt->state() == crypt_state::UNINITIALIZED){
-		//if (msg->msgid == MAVLINK_MSG_ID_TUNNEL){
-		//	PX4_INFO("Received a request to connect, initiating handshake");
-		//	_crypt->initiate_handshake();
-		//}
-		//if (msg->msgid != MAVLINK_MSG_ID_HEARTBEAT) return; // Only allows heartbeat messages past
+{
+	switch (_crypt->state())
+	{
+	case crypt_state::UNINITIALIZED:
+		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break; else return;
+		break;
+	case crypt_state::INITIALIZING:
+		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
 
-	//}
-	PX4_INFO("[DEBUGGING] Got msg ID: %u from Sys: %u", msg->msgid, msg->sysid);
+		else if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_REQUEST){
+			_crypt->initiate_handshake();
+		}
+		else return;
+		break;
+	case crypt_state::HANDSHAKING:
+		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
+		else if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_DATA){
+			PX4_INFO("Received handshake key");
+			// crypt will send out the public key to the GCS
+			// crypt class will wait in this state until a public key is received
+			// when the key is converted to AES, crypt will wait for confirmation
+		}
+		else if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_CONFIRM){
+			PX4_INFO("Ascertaining if the correct key was obtained");
+			// crypt class will check if the decrypted key matches the expected salt
+			// if yes, drone is ready to begin
+		}
+		else return;
+		break;
+	case crypt_state::READY:
+		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
+		else{
+			// perform encryption here
+			// except for heartbeats
+		}
+		break;
+	default:
+		break;
+	}
+	// PX4_INFO("[DEBUGGING] Got msg ID: %u from Sys: %u", msg->msgid, msg->sysid);
+
+
 
 	switch (msg->msgid) {
 	// For encryption
-	case MAVLINK_MSG_ID_KEY_EXCHANGE_REQUEST:
-		PX4_INFO("[The Bugger] We have received a request for handshake, huzzah");
-		break;
-	case MAVLINK_MSG_ID_KEY_EXCHANGE_DATA:
-		PX4_INFO("[The Bugger] We've just received a password, its not 1234");
-		break;
-	case MAVLINK_MSG_ID_KEY_EXCHANGE_CONFIRM:
-		PX4_INFO("[The Bugger] Someone messed up!!!");
-		break;
+	// case MAVLINK_MSG_ID_KEY_EXCHANGE_REQUEST:
+	// 	PX4_INFO("[The Bugger] We have received a request for handshake, huzzah");
+	// 	break;
+	// case MAVLINK_MSG_ID_KEY_EXCHANGE_DATA:
+	// 	PX4_INFO("[The Bugger] We've just received a password, its not 1234");
+	// 	break;
+	// case MAVLINK_MSG_ID_KEY_EXCHANGE_CONFIRM:
+	// 	PX4_INFO("[The Bugger] Someone messed up!!!");
+	// 	break;
+
 	case MAVLINK_MSG_ID_COMMAND_LONG:
 		handle_message_command_long(msg);
 		break;
