@@ -3,5 +3,6 @@ menuconfig MODULES_VTOL_NMPC_CONTROL
 	default n
 	select MODULES_PX4_WORK_QUEUE
 	---help---
-		Industry-standard NMPC controller replacing PID loops.
-		Uses CasADi generated C-code for real-time VTOL optimization.
+		High-performance NMPC controller for Quadplanes.
+		Uses acados with BLASFEO ARMV7_CORTEX_M7 optimizations
+		for real-time VTOL transition and hover control.

@@ -1,304 +1,261 @@
 #include "vtol_nmpc_control.hpp"
-#include <px4_platform_common/getopt.h>
-#include <px4_platform_common/px4_config.h>
 #include <lib/mathlib/mathlib.h>
-#include <matrix/math.hpp>
+#include <cmath>
 
-using namespace time_literals;
+extern "C" {
+#include <acados_c/ocp_nlp_interface.h>
+}
 
 VtolNmpcControl::VtolNmpcControl() :
     ModuleParams(nullptr),
-    px4::ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers)
+    ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers)
 {
-    memset(_state_u_vec, 0, sizeof(_state_u_vec));
-    memset(_reference_vec, 0, sizeof(_reference_vec));
-    memset(_worker_w, 0, sizeof(_worker_w));
-
-    // Initialize controls: hover thrust, zero moments
-    _state_u_vec[13] = 0.5;   // Collective thrust
-    _state_u_vec[14] = 0.0;   // Roll moment
-    _state_u_vec[15] = 0.0;   // Pitch moment
-    _state_u_vec[16] = 0.0;   // Yaw moment
 }
 
-VtolNmpcControl::~VtolNmpcControl() {
-    ScheduleClear();
+VtolNmpcControl::~VtolNmpcControl()
+{
+    if (_capsule) {
+        quadplane_nmpc_acados_free(_capsule);
+        quadplane_nmpc_acados_free_capsule(_capsule);
+    }
 }
 
 bool VtolNmpcControl::init()
 {
-    ScheduleOnInterval(50000_us);  // 20 Hz
-    PX4_INFO("NMPC Controller initialized (20 Hz)");
+    _capsule = quadplane_nmpc_acados_create_capsule();
+    int status = quadplane_nmpc_acados_create(_capsule);
+
+    if (status != 0) {
+        PX4_ERR("NMPC Solver Creation Failed: %d", status);
+        return false;
+    }
+
+    float dt = _param_nmpc_dt.get();
+    if (dt <= 0.0f) { dt = 0.05f; }
+
+    ScheduleOnInterval(static_cast<uint32_t>(dt * 1e6f));
+    PX4_INFO("NMPC Controller initialized (dt=%.3f s)", (double)dt);
     return true;
 }
 
 void VtolNmpcControl::Run()
 {
-    if (should_exit()) {
-        ScheduleClear();
-        exit_and_cleanup();
+    if (should_exit()) { ScheduleClear(); exit_and_cleanup(); return; }
+
+    if (_parameter_update_sub.updated()) {
+        parameter_update_s pupdate;
+        _parameter_update_sub.copy(&pupdate);
+        updateParams();
+    }
+
+    vehicle_control_mode_s mode{};
+    _control_mode_sub.copy(&mode);
+
+    vtol_vehicle_status_s v_status{};
+    _vtol_status_sub.copy(&v_status);
+
+    vehicle_local_position_s pos{};
+    if (!mode.flag_armed || !_local_pos_sub.copy(&pos)) {
+        _z_integral = 0.0f;
+        _last_run   = hrt_absolute_time();
         return;
     }
 
-    parameters_update();
+    if (!_param_use_nmpc.get()) { return; }
 
-    vehicle_local_position_s  pos;
-    vehicle_attitude_s         att;
-    vehicle_angular_velocity_s ang_vel;
+    // --- 1. Reference from trajectory_setpoint ---
+    trajectory_setpoint_s sp{};
+    float target_vz = 0.0f;
 
-    if (!_local_pos_sub.copy(&pos) ||
-        !_att_sub.copy(&att)       ||
-        !_angular_vel_sub.copy(&ang_vel)) {
-        return;  // No valid state yet
+    if (_trajectory_setpoint_sub.copy(&sp)) {
+        const float dt = _param_nmpc_dt.get();
+
+        // Save raw GCS destination for distance/pusher/transition decisions
+        if (PX4_ISFINITE(sp.position[0])) { _x_dest = (double)sp.position[0]; }
+        if (PX4_ISFINITE(sp.position[1])) { _y_dest = (double)sp.position[1]; }
+
+        // Replacement 1: Parameterized Lateral Slew
+        const double slew = (double)_param_nmpc_ref_slew.get();
+        if (PX4_ISFINITE(sp.position[0])) {
+            _x_ref += math::constrain(
+                _x_dest - _x_ref,
+                -slew * (double)dt, slew * (double)dt);
+        }
+        if (PX4_ISFINITE(sp.position[1])) {
+            _y_ref += math::constrain(
+                _y_dest - _y_ref,
+                -slew * (double)dt, slew * (double)dt);
+        }
+
+        // Replacement 2: Parameterized Vertical Slew
+        if (PX4_ISFINITE(sp.position[2])) {
+            const float vsp  = _param_nmpc_max_vsp.get();
+            float z_diff     = sp.position[2] - (float)_z_ref;
+            float step       = math::constrain(z_diff, -vsp * dt, vsp * dt);
+            _z_ref          += (double)step;
+            target_vz        = step / dt;
+        }
     }
 
-    // ── 1. State vector ──────────────────────────────────────────────────────
-    _state_u_vec[0]  = pos.x;
-    _state_u_vec[1]  = pos.y;
-    _state_u_vec[2]  = pos.z;
-    _state_u_vec[3]  = pos.vx;
-    _state_u_vec[4]  = pos.vy;
-    _state_u_vec[5]  = pos.vz;
-    _state_u_vec[6]  = att.q[0];         // qw
-    _state_u_vec[7]  = att.q[1];         // qx
-    _state_u_vec[8]  = att.q[2];         // qy
-    _state_u_vec[9]  = att.q[3];         // qz
-    _state_u_vec[10] = ang_vel.xyz[0];   // p  (roll  rate)
-    _state_u_vec[11] = ang_vel.xyz[1];   // q  (pitch rate)
-    _state_u_vec[12] = ang_vel.xyz[2];   // r  (yaw   rate)
+    // --- 2. Distance & Replacement 3 (Part A): Parameterized Max Speed ---
+    const float dx           = (float)(_x_dest - (double)pos.x);
+    const float dy           = (float)(_y_dest - (double)pos.y);
+    const float horiz_dist   = sqrtf(dx * dx + dy * dy);
 
-    // ── 2. Reference ─────────────────────────────────────────────────────────
-    update_reference();
+    const float max_spd         = _param_nmpc_max_spd.get();
+    const float desired_fwd_spd = math::constrain(horiz_dist * 0.5f, 0.0f, max_spd);
 
-    // ── 3. NMPC optimisation ─────────────────────────────────────────────────
-    const uint64_t t_start = hrt_absolute_time();
-    optimize();
-    const uint64_t solver_time = hrt_absolute_time() - t_start;
+    // --- 3. Altitude integrator ---
+    const hrt_abstime now = hrt_absolute_time();
+    if (_last_run > 0) {
+        const float dt_sec = static_cast<float>(now - _last_run) * 1e-6f;
+        _z_integral += 0.5f * ((float)_z_ref - pos.z) * dt_sec;
+        _z_integral  = math::constrain(_z_integral, -1.0f, 1.0f);
+    }
+    _last_run = now;
 
-    // ── 4. Motor mixing & publish ─────────────────────────────────────────────
-    // _state_u_vec[13] = collective thrust  T   (0 → 1)
-    // _state_u_vec[14] = roll  moment       Mx  (-1 → 1)
-    // _state_u_vec[15] = pitch moment       My  (-1 → 1)
-    // _state_u_vec[16] = yaw  moment        Mz  (-1 → 1)
-    //
-    // X-configuration quadrotor:
-    //
-    //        front
-    //    M1 (CCW)  M2 (CW)
-    //       \      /
-    //        \    /
-    //    M3 (CW)  M4 (CCW)
-    //        back
-    //
-    //  M1 = T + Mx + My - Mz   (front-left)
-    //  M2 = T - Mx + My + Mz   (front-right)
-    //  M3 = T + Mx - My + Mz   (rear-left)
-    //  M4 = T - Mx - My - Mz   (rear-right)
+    // --- 4. NMPC initial state ---
+    double x0[7] = {
+        (double)pos.x,  (double)pos.y,  (double)pos.z,
+        (double)pos.vx, (double)pos.vy, (double)pos.vz,
+        (double)_z_integral
+    };
 
-    const float T  = (float)_state_u_vec[13];
-    const float Mx = (float)_state_u_vec[14];
-    const float My = (float)_state_u_vec[15];
-    const float Mz = (float)_state_u_vec[16];
+    // Casting field names to (char *) to satisfy C++ compiler safety
+// CORRECT — nlp_out restored as 4th arg per your acados signature
+    ocp_nlp_constraints_model_set(_capsule->nlp_config, _capsule->nlp_dims,
+                               _capsule->nlp_in, _capsule->nlp_out,
+                               0, "lbx", x0);
+    ocp_nlp_constraints_model_set(_capsule->nlp_config, _capsule->nlp_dims,
+                               _capsule->nlp_in, _capsule->nlp_out,
+                               0, "ubx", x0);
 
-    actuator_motors_s out{};
-    out.timestamp        = hrt_absolute_time();
-    out.timestamp_sample = out.timestamp;
+    // --- 5. Horizon references ---
+    const double dyn_hover = math::constrain(
+        0.37 + ((double)_z_integral * 0.25), 0.10, 0.65);
 
-    out.control[0] = math::constrain(T + Mx + My - Mz, 0.0f, 1.0f);  // M1 front-left
-    out.control[1] = math::constrain(T - Mx + My + Mz, 0.0f, 1.0f);  // M2 front-right
-    out.control[2] = math::constrain(T + Mx - My + Mz, 0.0f, 1.0f);  // M3 rear-left
-    out.control[3] = math::constrain(T - Mx - My - Mz, 0.0f, 1.0f);  // M4 rear-right
+    double y_ref[11] = {
+        _x_ref, _y_ref, _z_ref,
+        0.0,    0.0,    (double)target_vz,
+        0.0,
+        dyn_hover, dyn_hover, dyn_hover, dyn_hover
+    };
 
-    // Safety: if any NaN slip through, cut motors
+    for (int i = 0; i <= _capsule->nlp_dims->N; i++) {
+        ocp_nlp_cost_model_set(_capsule->nlp_config, _capsule->nlp_dims,
+                               _capsule->nlp_in, i, (char *)"yref", (void *)y_ref);
+    }
+
+    // --- 6. Solve ---
+    const uint64_t t_start     = hrt_absolute_time();
+    int            solve_status = quadplane_nmpc_acados_solve(_capsule);
+    const uint32_t solver_time  = (uint32_t)(hrt_absolute_time() - t_start);
+
+    double u_plan[4] = {dyn_hover, dyn_hover, dyn_hover, dyn_hover};
+    if (solve_status == 0) { // ACADOS_SUCCESS
+        ocp_nlp_out_get(_capsule->nlp_config, _capsule->nlp_dims,
+                        _capsule->nlp_out, 0, (char *)"u", (void *)u_plan);
+    }
+
+    // --- 7. VTOL state ---
+    const bool currently_hover = (v_status.vehicle_vtol_state == vtol_vehicle_status_s::VEHICLE_VTOL_STATE_MC);
+    const bool currently_fw    = (v_status.vehicle_vtol_state == vtol_vehicle_status_s::VEHICLE_VTOL_STATE_FW);
+    const bool in_transition   = (v_status.vehicle_vtol_state == vtol_vehicle_status_s::VEHICLE_VTOL_STATE_TRANSITION_TO_FW ||
+                                  v_status.vehicle_vtol_state == vtol_vehicle_status_s::VEHICLE_VTOL_STATE_TRANSITION_TO_MC);
+
+    // --- 8. Transition commands ---
+    if (horiz_dist > 20.0f && currently_hover && _loop_counter % 200 == 0) {
+        vehicle_command_s vcmd{};
+        vcmd.timestamp        = hrt_absolute_time();
+        vcmd.command          = vehicle_command_s::VEHICLE_CMD_DO_VTOL_TRANSITION;
+        vcmd.param1           = 4.0f; // fixed-wing
+        vcmd.target_system    = 1;
+        vcmd.target_component = 1;
+        _vehicle_command_pub.publish(vcmd);
+        PX4_INFO("NMPC: → FW transition (dest_dist=%.1fm)", (double)horiz_dist);
+    }
+
+    if (horiz_dist < 10.0f && currently_fw && _loop_counter % 200 == 0) {
+        vehicle_command_s vcmd{};
+        vcmd.timestamp        = hrt_absolute_time();
+        vcmd.command          = vehicle_command_s::VEHICLE_CMD_DO_VTOL_TRANSITION;
+        vcmd.param1           = 3.0f; // multicopter
+        vcmd.target_system    = 1;
+        vcmd.target_component = 1;
+        _vehicle_command_pub.publish(vcmd);
+        PX4_INFO("NMPC: → MC transition (dest_dist=%.1fm)", (double)horiz_dist);
+    }
+
+    // --- 9. Actuator output & Replacement 3 (Part B): Normalized Pusher Logic ---
+    actuator_motors_s motors{};
+    motors.timestamp        = hrt_absolute_time();
+    motors.timestamp_sample = motors.timestamp;
+
     for (int i = 0; i < 4; i++) {
-        if (!PX4_ISFINITE(out.control[i])) out.control[i] = 0.0f;
+        motors.control[i] = currently_fw ? 0.0f :
+            math::constrain(static_cast<float>(u_plan[i]), 0.0f, 1.0f);
     }
 
-    out.reversible_flags = 0;
-    _actuator_motors_pub.publish(out);
+    float pusher_throttle = 0.0f;
+    if (currently_fw) {
+        pusher_throttle = math::constrain(desired_fwd_spd / max_spd, 0.3f, 0.9f);
+    } else if (in_transition) {
+        pusher_throttle = math::constrain(desired_fwd_spd / (max_spd * 1.33f), 0.1f, 0.7f);
+    } else if (horiz_dist > 5.0f) {
+        pusher_throttle = math::constrain(desired_fwd_spd / (max_spd * 2.0f), 0.0f, 0.3f);
+    }
+    motors.control[4] = pusher_throttle;
 
-    // ── 5. Periodic log ───────────────────────────────────────────────────────
+    _actuator_motors_pub.publish(motors);
+
+    // --- 10. Logging ---
     if (_loop_counter % 20 == 0) {
-        PX4_INFO("NMPC pos=[%.2f,%.2f,%.2f] ref=[%.2f,%.2f,%.2f] "
-                 "u=[T:%.3f Mx:%.3f My:%.3f Mz:%.3f] "
-                 "M=[%.3f,%.3f,%.3f,%.3f] dt=%llu us",
-                 (double)_state_u_vec[0],  (double)_state_u_vec[1],  (double)_state_u_vec[2],
-                 (double)_reference_vec[0],(double)_reference_vec[1],(double)_reference_vec[2],
-                 (double)T, (double)Mx, (double)My, (double)Mz,
-                 (double)out.control[0], (double)out.control[1],
-                 (double)out.control[2], (double)out.control[3],
-                 (unsigned long long)solver_time);
+        const double u_avg = (u_plan[0]+u_plan[1]+u_plan[2]+u_plan[3]) / 4.0;
+        PX4_INFO("NMPC [%d] %uus | %s | DestDist: %.1fm",
+                 solve_status, (unsigned int)solver_time,
+                 currently_fw ? "FW" : (in_transition ? "TRANSITION" : "HOVER"),
+                 (double)horiz_dist);
+        PX4_INFO("POS:[%6.1f,%6.1f,%6.2f] DEST:[%6.1f,%6.1f] REF_Z:%6.2f",
+                 (double)pos.x, (double)pos.y, (double)pos.z,
+                 _x_dest, _y_dest, _z_ref);
+        PX4_INFO("DynHov:%.2f LiftAvg:%.2f Pusher:%.2f Int:%.3f",
+                 dyn_hover, u_avg, (double)pusher_throttle, (double)_z_integral);
+
+        if (solve_status != 0) {
+            PX4_WARN("Solver Warning: Status %d", solve_status);
+        }
     }
     _loop_counter++;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-void VtolNmpcControl::update_reference()
+int VtolNmpcControl::task_spawn(int argc, char *argv[])
 {
-    trajectory_setpoint_s sp;
-
-    if (_setpoint_sub.copy(&sp)) {
-
-        _reference_vec[0] = PX4_ISFINITE(sp.position[0]) ? (double)sp.position[0] : _state_u_vec[0];
-        _reference_vec[1] = PX4_ISFINITE(sp.position[1]) ? (double)sp.position[1] : _state_u_vec[1];
-        _reference_vec[2] = PX4_ISFINITE(sp.position[2]) ? (double)sp.position[2] : _state_u_vec[2];
-
-        _reference_vec[3] = PX4_ISFINITE(sp.velocity[0]) ? (double)sp.velocity[0] : 0.0;
-        _reference_vec[4] = PX4_ISFINITE(sp.velocity[1]) ? (double)sp.velocity[1] : 0.0;
-        _reference_vec[5] = PX4_ISFINITE(sp.velocity[2]) ? (double)sp.velocity[2] : 0.0;
-
-        if (PX4_ISFINITE(sp.yaw)) {
-            const float cy = cosf(sp.yaw * 0.5f);
-            const float sy = sinf(sp.yaw * 0.5f);
-            _reference_vec[6] = (double)cy;
-            _reference_vec[7] = 0.0;
-            _reference_vec[8] = 0.0;
-            _reference_vec[9] = (double)sy;
-        } else {
-            _reference_vec[6] = _state_u_vec[6];
-            _reference_vec[7] = _state_u_vec[7];
-            _reference_vec[8] = _state_u_vec[8];
-            _reference_vec[9] = _state_u_vec[9];
-        }
-
-        _reference_vec[10] = 0.0;
-        _reference_vec[11] = 0.0;
-        _reference_vec[12] = PX4_ISFINITE(sp.yawspeed) ? (double)sp.yawspeed : 0.0;
-
-    } else {
-        // No setpoint → hold current state
-        for (int i = 0; i < 13; i++) _reference_vec[i] = _state_u_vec[i];
-        _reference_vec[3] = _reference_vec[4] = _reference_vec[5]  = 0.0;
-        _reference_vec[10]= _reference_vec[11]= _reference_vec[12] = 0.0;
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// NMPC optimise:
-//   Step A – call the CasADi cost function once to get current cost.
-//   Step B – numerical gradient  ∂J/∂u  via finite differences.
-//   Step C – direct proportional correction from state error   (fast path).
-//   Step D – gradient-descent refinement with momentum         (NMPC path).
-//   Both paths are blended so the drone responds immediately AND the
-//   CasADi solver keeps pulling the solution toward optimality.
-// ─────────────────────────────────────────────────────────────────────────────
-void VtolNmpcControl::optimize()
-{
-    // ── Tuning knobs ─────────────────────────────────────────────────────────
-    constexpr double KP_Z   =  0.35;   // Altitude proportional gain
-    constexpr double KD_Z   =  0.15;   // Altitude derivative  gain
-    constexpr double KP_XY  =  0.12;   // Horizontal position  gain
-    constexpr double KD_XY  =  0.06;   // Horizontal velocity  gain
-    constexpr double ALPHA   =  0.25;   // Gradient descent step
-    constexpr double MOMENTUM=  0.85;
-    constexpr double EPS     =  1e-3;   // Finite-difference step
-    constexpr int    N_ITER  =  12;     // GD iterations per cycle
-    constexpr double BLEND   =  0.4;    // 0=pure PD, 1=pure GD
-
-    // ── Errors (NED: z negative = altitude) ──────────────────────────────────
-    const double ez  = _reference_vec[2] - _state_u_vec[2];   // +  = need to climb
-    const double evz = _reference_vec[5] - _state_u_vec[5];   // desired – actual vz
-    const double ex  = _reference_vec[0] - _state_u_vec[0];
-    const double ey  = _reference_vec[1] - _state_u_vec[1];
-    const double evx = _reference_vec[3] - _state_u_vec[3];
-    const double evy = _reference_vec[4] - _state_u_vec[4];
-
-    // ── Step C: Direct PD control law ────────────────────────────────────────
-    // Altitude: climb when ez < 0  (ref is more negative → higher)
-    const double thrust_pd = 0.5 - KP_Z * ez - KD_Z * evz;
-
-    // Horizontal: tilt toward target (small angle assumption)
-    // In NED body frame: positive pitch = nose down = +x acceleration
-    const double pitch_pd  =  KP_XY * ex + KD_XY * evx;   // fwd error  → nose down
-    const double roll_pd   = -KP_XY * ey - KD_XY * evy;   // right error → roll right
-
-    // ── Step A: CasADi cost evaluation ───────────────────────────────────────
-    casadi_real current_cost  = 0.0;
-    casadi_real perturbed_cost= 0.0;
-    casadi_real grad[4]       = {0.0, 0.0, 0.0, 0.0};
-
-    const casadi_real* arg[2] = {_state_u_vec, _reference_vec};
-    casadi_real* res[1]       = {&current_cost};
-    solver_fun(arg, res, nullptr, _worker_w, 0);
-
-    // ── Step B: Numerical gradient ∂J/∂u ─────────────────────────────────────
-    for (int i = 0; i < 4; i++) {
-        const int     idx  = 13 + i;
-        const casadi_real saved = _state_u_vec[idx];
-        _state_u_vec[idx] += EPS;
-
-        casadi_real* rp[1] = {&perturbed_cost};
-        solver_fun(arg, rp, nullptr, _worker_w, 0);
-
-        grad[i]           = (perturbed_cost - current_cost) / EPS;
-        _state_u_vec[idx] = saved;
-    }
-
-    // ── Step D: Gradient-descent with momentum ────────────────────────────────
-    for (int k = 0; k < N_ITER; k++) {
-        for (int i = 0; i < 4; i++) {
-            _velocity[i] = MOMENTUM * _velocity[i] - ALPHA * grad[i];
-        }
-    }
-
-    // Desired from GD step
-    const double thrust_gd = _state_u_vec[13] + _velocity[0];
-    const double roll_gd   = _state_u_vec[14] + _velocity[1];
-    const double pitch_gd  = _state_u_vec[15] + _velocity[2];
-    const double yaw_gd    = _state_u_vec[16] + _velocity[3];
-
-    // ── Blend PD (immediate response) + GD (optimal) ─────────────────────────
-    const double thrust_cmd = (1.0 - BLEND) * thrust_pd + BLEND * thrust_gd;
-    const double roll_cmd   = (1.0 - BLEND) * roll_pd   + BLEND * roll_gd;
-    const double pitch_cmd  = (1.0 - BLEND) * pitch_pd  + BLEND * pitch_gd;
-    const double yaw_cmd    = yaw_gd;   // yaw only from GD (no PD yaw yet)
-
-    // ── Smooth update (low-pass, avoid step changes) ──────────────────────────
-    constexpr double LP = 0.35;   // Low-pass coefficient
-    _state_u_vec[13] += LP * (thrust_cmd - _state_u_vec[13]);
-    _state_u_vec[14] += LP * (roll_cmd   - _state_u_vec[14]);
-    _state_u_vec[15] += LP * (pitch_cmd  - _state_u_vec[15]);
-    _state_u_vec[16] += LP * (yaw_cmd    - _state_u_vec[16]);
-
-    // ── Hard bounds ───────────────────────────────────────────────────────────
-    _state_u_vec[13] = fmax(0.05, fmin(0.95, _state_u_vec[13]));  // thrust 5-95%
-    _state_u_vec[14] = fmax(-0.3, fmin(0.3,  _state_u_vec[14]));  // roll  ±30%
-    _state_u_vec[15] = fmax(-0.3, fmin(0.3,  _state_u_vec[15]));  // pitch ±30%
-    _state_u_vec[16] = fmax(-0.2, fmin(0.2,  _state_u_vec[16]));  // yaw   ±20%
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-void VtolNmpcControl::parameters_update() { updateParams(); }
-
-int VtolNmpcControl::task_spawn(int argc, char *argv[]) {
     VtolNmpcControl *instance = new VtolNmpcControl();
     if (instance) {
         _object.store(instance);
         _task_id = task_id_is_work_queue;
-        if (instance->init()) return 0;
+        if (instance->init()) { return PX4_OK; }
     }
+    PX4_ERR("Failed to start vtol_nmpc_control");
     delete instance;
     _object.store(nullptr);
     _task_id = -1;
-    return -1;
+    return PX4_ERROR;
 }
 
-int VtolNmpcControl::print_usage(const char *reason) {
-    if (reason) PX4_WARN("%s\n", reason);
-    PRINT_MODULE_DESCRIPTION("VTOL NMPC Control");
+int VtolNmpcControl::custom_command(int argc, char *argv[]) { return print_usage("unknown command"); }
+
+int VtolNmpcControl::print_usage(const char *reason)
+{
+    if (reason) { PX4_WARN("%s\n", reason); }
+    PRINT_MODULE_DESCRIPTION("NMPC for VTOL Quadplane using Acados.");
     PRINT_MODULE_USAGE_NAME("vtol_nmpc_control", "controller");
     PRINT_MODULE_USAGE_COMMAND("start");
     PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
     return 0;
 }
 
-int VtolNmpcControl::custom_command(int argc, char *argv[]) {
-    return print_usage("unknown command");
-}
-// blah blah
-extern "C" __EXPORT int vtol_nmpc_control_main(int argc, char *argv[]) {
+extern "C" __EXPORT int vtol_nmpc_control_main(int argc, char *argv[])
+{
     return VtolNmpcControl::main(argc, argv);
 }
-
-
-

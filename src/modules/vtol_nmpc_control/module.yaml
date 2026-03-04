@@ -1,4 +1,4 @@
-module_name: VTOL NMPC Control
+module_name: vtol_nmpc_control
 
 parameters:
     - group: VTOL NMPC
@@ -6,8 +6,22 @@ parameters:
           USE_NMPC:
               description:
                   short: Enable NMPC control
-              type: boolean
-              default: 0
+              type: int32
+              min: 0
+              max: 1
+              default: 1
+
+          NMPC_W_POS:
+              description:
+                  short: Position tracking weight
+              type: float
+              default: 10.0
+
+          NMPC_W_PUSH:
+              description:
+                  short: Pusher motor effort weight
+              type: float
+              default: 1.0
 
           NMPC_N_STEPS:
               description:
@@ -26,3 +40,33 @@ parameters:
               unit: s
               decimal: 3
               default: 0.05
+
+          NMPC_MAX_SPD:
+              description:
+                  short: Maximum forward cruise speed
+              type: float
+              min: 1.0
+              max: 30.0
+              unit: m/s
+              decimal: 1
+              default: 15.0
+
+          NMPC_REF_SLEW:
+              description:
+                  short: Lateral reference slew rate
+              type: float
+              min: 1.0
+              max: 20.0
+              unit: m/s
+              decimal: 1
+              default: 5.0
+
+          NMPC_MAX_VSP:
+              description:
+                  short: Maximum vertical speed
+              type: float
+              min: 0.5
+              max: 10.0
+              unit: m/s
+              decimal: 1
+              default: 3.0
