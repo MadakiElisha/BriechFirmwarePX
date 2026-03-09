@@ -109,3 +109,6 @@
 [submodule "src/lib/rl_tools/rl_tools"]
 	path = src/lib/rl_tools/rl_tools
 	url = https://github.com/rl-tools/rl-tools.git
+[submodule "src/lib/crypto/mbedtls"]
+	path = src/lib/crypto/mbedtls
+	url = https://github.com/Mbed-TLS/mbedtls.git

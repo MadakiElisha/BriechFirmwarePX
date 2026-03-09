@@ -146,35 +146,34 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	switch (_crypt->state())
 	{
 	case crypt_state::UNINITIALIZED:
-		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break; else return;
+		// Only allow heartbeats through
+		if(msg->msgid != MAVLINK_MSG_ID_HEARTBEAT) return;
 		break;
-	case crypt_state::INITIALIZING:
+	case crypt_state::INITIALIZED:
 		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
 
 		else if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_REQUEST){
 			_crypt->initiate_handshake();
 		}
-		else return;
+		return;
 		break;
 	case crypt_state::HANDSHAKING:
 		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
 		else if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_DATA){
-			PX4_INFO("Received handshake key");
-			// crypt will send out the public key to the GCS
-			// crypt class will wait in this state until a public key is received
-			// when the key is converted to AES, crypt will wait for confirmation
+			PX4_INFO("[Debug] Received handshake key");
+			_crypt->recv_public_key();
 		}
 		else if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_CONFIRM){
-			PX4_INFO("Ascertaining if the correct key was obtained");
-			// crypt class will check if the decrypted key matches the expected salt
-			// if yes, drone is ready to begin
+			PX4_INFO("[Debug] Ascertaining if the correct key was obtained");
+			_crypt->finalize_handshake();
 		}
 		else return;
 		break;
 	case crypt_state::READY:
 		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
 		else{
-			// perform encryption here
+			PX4_INFO("Received message");
+			// perform decryption here
 			// except for heartbeats
 		}
 		break;

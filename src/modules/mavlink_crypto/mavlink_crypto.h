@@ -13,7 +13,7 @@
 #include <string.h>
 
 // mbedTLS crypto library
-#include <mbedtls/gcm.h>
+// #include <mbedtls/gcm.h>
 
 // PX4 platform includes
 #include <px4_platform_common/module.h>
@@ -69,7 +69,7 @@ public:
                        size_t *plaintext_len);
 
 private:
-    mbedtls_gcm_context _aes_ctx;
+    // mbedtls_gcm_context _aes_ctx;
     uint8_t _encryption_key[AES_KEY_SIZE];
     uint32_t _encrypted_count;
     uint32_t _decrypted_count;

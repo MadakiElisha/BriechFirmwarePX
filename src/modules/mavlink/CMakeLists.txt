@@ -121,7 +121,7 @@ target_include_directories(mavlink_c
 )
 
 # Add mbedtls include directory to the entire MAVLink directory scope
-include_directories(${PX4_SOURCE_DIR}/src/lib/crypto/mbedtls/include)
+# include_directories(${PX4_SOURCE_DIR}/src/lib/crypto/mbedtls/include)
 
 if(CONFIG_MAVLINK_DIALECT)
 	set(MAVLINK_DIALECT ${CONFIG_MAVNLINK_DIALECT})
@@ -172,17 +172,20 @@ px4_add_module(
 		sensor_calibration
 		geo
 		mavlink_c
-		mbedtls
+		mbedtls_interface
 		timesync
 		tunes
 		variable_length_ringbuffer
 		version
 	UNITY_BUILD
-	)
+)
+
+target_link_libraries(modules__mavlink PUBLIC mbedtls_interface)
 
 if(PX4_TESTING)
 	add_subdirectory(mavlink_tests)
 endif()
+
 
 px4_add_unit_gtest(SRC MavlinkStatustextHandlerTest.cpp
 	INCLUDES
@@ -194,6 +197,7 @@ px4_add_unit_gtest(SRC MavlinkStatustextHandlerTest.cpp
 		-Wno-cast-align # TODO: fix
 	LINKLIBS
 		modules__mavlink
+		mbedtls_interface
 	)
 
 if(CONFIG_NET AND "${PX4_PLATFORM}" MATCHES "nuttx")
