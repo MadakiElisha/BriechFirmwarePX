@@ -31,6 +31,14 @@ int MavlinkCrypt::decrypt_msg(
 	return 1;
 }
 
+void MavlinkCrypt::decrypt_payload(
+			uint8_t *payload,
+			uint16_t len
+		)
+{
+    crypto_chacha20_ctr(payload, payload, len, _shared_key, _temp_nonce, 0);
+}
+
 void MavlinkCrypt::initiate_handshake()
 {
     PX4_INFO("[Debug] Changing state to HANDSHAKING");
@@ -41,53 +49,17 @@ void MavlinkCrypt::initiate_handshake()
 
 bool MavlinkCrypt::_generate_key_pair()
 {
-    psa_status_t status;
-    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
-    // psa_key_id_t key_id;
+    PX4_INFO("[Debug] Generating keypair!!");
 
+    _random_num_gen(_secret_key, 32);
 
-    status = psa_crypto_init();
-    if (status != PSA_SUCCESS) {
-        PX4_INFO("Failed to initialize PSA Crypto: %d\n", status);
-        return false;
-    }
+    PX4_INFO("[Debug] Secret Key");
+    print_key(_secret_key, 32);
 
-    // 2. Set Key Attributes
-    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_EXPORT | PSA_KEY_USAGE_DERIVE);
-    psa_set_key_algorithm(&attributes, PSA_ALG_ECDH);
-    psa_set_key_type(&attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_MONTGOMERY));
-    psa_set_key_bits(&attributes, 256);
-
-    // 3. Generate the Key
-    PX4_WARN("[Debug] Using temporary STATIC KEY!!");
-
-    // PX4_INFO("Generating key pair...\n");
-    // status = psa_generate_key(&attributes, &key_id);
-    // if (status != PSA_SUCCESS) {
-    //     PX4_INFO("Key generation failed: %d\n", status);
-    //     return false;
-    // }
+    // Compute public key
+    crypto_x25519_public_key(_public_key, _secret_key);
+    PX4_INFO("[Debug] Public Key");
     print_key(_public_key, 32);
-
-
-    // 4. Export the Public Key
-    // uint8_t public_key[32];
-    // size_t public_key_len;
-
-    // status = psa_export_public_key(key_id, public_key, sizeof(public_key), &public_key_len);
-
-    // if (status == PSA_SUCCESS) {
-        // print_key(_public_key, 32);
-    // } else {
-    //     PX4_INFO("Failed to export public key: %d\n", status);
-    // }
-
-
-
-
-    // 5. Clean up
-    // psa_destroy_key(key_id);
-    // psa_reset_key_attributes(&attributes);
 
     return true;
 }
@@ -110,7 +82,8 @@ bool MavlinkCrypt::_send_public_key(){
 	return 1;
 }
 
-void MavlinkCrypt::print_key(uint8_t* key, size_t len) {
+void MavlinkCrypt::print_key(uint8_t* key,
+                             size_t len) {
     printf("Key: ");
     for (size_t i = 0; i < len; i++) {
         printf("%02x", key[i]);
@@ -119,17 +92,44 @@ void MavlinkCrypt::print_key(uint8_t* key, size_t len) {
     return;
 }
 
-void MavlinkCrypt::recv_public_key(){
+void MavlinkCrypt::recv_public_key(uint8_t public_key[32]){
     PX4_INFO("[Debug] Received public key from GCS");
+    print_key(public_key, 32);
 
-    PX4_WARN("[Debug] Using static key!!!");
-    print_key(_shared_secret, 256);
+    PX4_INFO("[Debug] Generating shared key");
+    crypto_x25519(_shared_key, _secret_key, public_key);
+
+    print_key(_shared_key, 32);
+
+    finalize_handshake();
+
 }
-
 
 void MavlinkCrypt::finalize_handshake(){
     PX4_INFO("[Debug] Just passing the check for testing");
 
     PX4_INFO("[Debug] Changing state to READY");
     _state = crypt_state::READY;
+}
+
+bool MavlinkCrypt::_random_num_gen(uint8_t* buffer, uint8_t size){
+    int fd = open("/dev/urandom", O_RDONLY);
+
+    if(fd>=0){
+        ssize_t bytes_read = read(fd, buffer, size);
+
+        close(fd);
+
+        return true;
+
+        if(bytes_read != size){
+            PX4_ERR("[Debug] Error in random number generator");
+            return false;
+        }
+    }else {
+        PX4_ERR("[Debug] /dev/urandom is not available");
+        return false;
+    }
+
+    return false;
 }

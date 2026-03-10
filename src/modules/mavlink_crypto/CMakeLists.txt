@@ -10,5 +10,5 @@ px4_add_module(
     SRCS
         mavlink_crypto.cpp
     DEPENDS
-        mbedtls
+        # mbedtls
 )

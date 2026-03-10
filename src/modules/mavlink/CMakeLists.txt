@@ -117,6 +117,7 @@ target_include_directories(mavlink_c
 		${MAVLINK_LIBRARY_DIR}/../
 		${MAVLINK_LIBRARY_DIR}/${CONFIG_MAVLINK_DIALECT}
 		${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_UAVIONIX}
+		${PX4_SOURCE_DIR}/src/lib/crypto/monocypher/src
 		# ${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_ENCR}  # Adding the encryption dialect to the build dir
 )
 
@@ -172,7 +173,7 @@ px4_add_module(
 		sensor_calibration
 		geo
 		mavlink_c
-		mbedtls_interface
+		monocypher_interface
 		timesync
 		tunes
 		variable_length_ringbuffer
@@ -180,7 +181,7 @@ px4_add_module(
 	UNITY_BUILD
 )
 
-target_link_libraries(modules__mavlink PUBLIC mbedtls_interface)
+target_link_libraries(modules__mavlink PUBLIC monocypher_interface)
 
 if(PX4_TESTING)
 	add_subdirectory(mavlink_tests)
@@ -192,12 +193,13 @@ px4_add_unit_gtest(SRC MavlinkStatustextHandlerTest.cpp
 		${MAVLINK_LIBRARY_DIR}
 		${MAVLINK_LIBRARY_DIR}/${CONFIG_MAVLINK_DIALECT}
 		${MAVLINK_LIBRARY_DIR}/${MAVLINK_DIALECT_UAVIONIX}
+		${PX4_SOURCE_DIR}/src/lib/crypto/monocypher/src
 	COMPILE_FLAGS
 		-Wno-address-of-packed-member # TODO: fix in c_library_v2
 		-Wno-cast-align # TODO: fix
 	LINKLIBS
 		modules__mavlink
-		mbedtls_interface
+		monocypher_interface
 	)
 
 if(CONFIG_NET AND "${PX4_PLATFORM}" MATCHES "nuttx")

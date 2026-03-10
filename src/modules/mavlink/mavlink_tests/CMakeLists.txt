@@ -38,6 +38,7 @@ px4_add_module(
 	INCLUDES
 		${MAVLINK_LIBRARY_DIR}
 		${MAVLINK_LIBRARY_DIR}/${CONFIG_MAVLINK_DIALECT}
+		${PX4_SOURCE_DIR}/src/lib/crypto/monocypher/src
 	COMPILE_FLAGS
 		-DMAVLINK_FTP_UNIT_TEST
 		#-DMAVLINK_FTP_DEBUG
@@ -53,4 +54,5 @@ px4_add_module(
 		../mavlink_ftp.cpp
 	DEPENDS
 		mavlink_c_generate
+		monocypher_interface
 	)

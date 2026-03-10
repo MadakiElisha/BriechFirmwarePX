@@ -160,7 +160,12 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	case crypt_state::HANDSHAKING:
 		if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_DATA){
 			PX4_INFO("[Debug] Received handshake key");
-			_crypt->recv_public_key();
+
+			mavlink_key_exchange_data_t exchange_msg;
+
+			mavlink_msg_key_exchange_data_decode(msg, &exchange_msg);
+
+			_crypt->recv_public_key(exchange_msg.public_key);
 		}
 		else if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_CONFIRM){
 			PX4_INFO("[Debug] Ascertaining if the correct key was obtained");
@@ -178,7 +183,21 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		else{
 			PX4_INFO("Received message");
 			// perform decryption here
-			// except for heartbeats
+			uint8_t *payload = (uint8_t *)_MAV_PAYLOAD_NON_CONST(msg);
+
+			switch (msg->msgid){
+				case MAVLINK_MSG_ID_STATUSTEXT:
+					// Text starts at offset 1 (after severity)
+					_crypt->decrypt_payload(payload + 1, 50);
+					break;
+				case MAVLINK_MSG_ID_COMMAND_LONG:
+					// Decrypt parameters if needed
+					_crypt->decrypt_payload(payload, msg->len);
+					break;
+				default:
+					_crypt->decrypt_payload(payload, msg->len);
+					break;
+			}
 		}
 		break;
 	default:
@@ -189,16 +208,6 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 
 
 	switch (msg->msgid) {
-	// For encryption
-	// case MAVLINK_MSG_ID_KEY_EXCHANGE_REQUEST:
-	// 	PX4_INFO("[The Bugger] We have received a request for handshake, huzzah");
-	// 	break;
-	// case MAVLINK_MSG_ID_KEY_EXCHANGE_DATA:
-	// 	PX4_INFO("[The Bugger] We've just received a password, its not 1234");
-	// 	break;
-	// case MAVLINK_MSG_ID_KEY_EXCHANGE_CONFIRM:
-	// 	PX4_INFO("[The Bugger] Someone messed up!!!");
-	// 	break;
 
 	case MAVLINK_MSG_ID_COMMAND_LONG:
 		handle_message_command_long(msg);
@@ -2951,6 +2960,14 @@ void MavlinkReceiver::handle_message_generator_status(mavlink_message_t *msg)
 
 void MavlinkReceiver::handle_message_statustext(mavlink_message_t *msg)
 {
+	PX4_INFO("[Debug] We have received the message actually!");
+	mavlink_statustext_t statusotexto;
+	mavlink_msg_statustext_decode(msg, &statusotexto);
+
+	// This will print to the 'pxh' shell immediately
+	PX4_INFO("STATUSTEXT from %u: %s", msg->sysid, statusotexto.text);
+
+
 	if (msg->sysid == mavlink_system.sysid) {
 		// log message from the same system
 

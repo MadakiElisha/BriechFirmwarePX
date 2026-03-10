@@ -5,9 +5,10 @@
 #include <stdlib.h>
 #include <time.h>
 
-// Including the mbedTLS crypto lib
-#include <psa/crypto.h>
-
+// Including the monocypher crypto lib
+#include <fcntl.h>
+#include <unistd.h>
+#include <monocypher.h>
 
 // To gain access to PX4_INFO and the like
 #include <px4_platform_common/log.h>
@@ -60,8 +61,13 @@ class MavlinkCrypt
 			size_t *plaintext_len
 		);
 
+		void decrypt_payload(
+			uint8_t *payload,
+			uint16_t len
+		);
+
 		void initiate_handshake();
-		void recv_public_key();
+		void recv_public_key(uint8_t public_key[32]);
 		void finalize_handshake();
 
 		crypt_state state(){
@@ -71,29 +77,19 @@ class MavlinkCrypt
 
 
 	private:
-		unsigned char _public_key[32] = {
-			0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-			0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
-			0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-			0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20
-		};
-		unsigned char _shared_secret[32] = {
-			0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x1A, 0x19, 0x18,
-			0x17, 0x16, 0x15, 0x14, 0x13, 0x12, 0x11, 0x10,
-			0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08,
-			0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00
-		};
+		unsigned char _secret_key[32];
+		unsigned char _public_key[32];
+
+		unsigned char _shared_key[32];
+		unsigned char _temp_nonce[8] = {0};
 
 		crypt_state _state;
 		Mavlink *_mavlink{nullptr};
-		// orb_advert_t _handshake_pub = nullptr;
 
-		// For generating keys
-		// mbedtls_ecdh_context _ctx;
-		// mbedtls_ctr_drbg_context _ctr_drbg;
-		// mbedtls_entropy_context _entropy;
+
 		bool _generate_key_pair();
 		bool _send_public_key();
+		bool _random_num_gen(uint8_t* buffer, uint8_t size);
 		void print_key(uint8_t* key, size_t len);
 
 };
