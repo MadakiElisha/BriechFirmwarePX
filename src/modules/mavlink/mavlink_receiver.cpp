@@ -158,8 +158,7 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		return;
 		break;
 	case crypt_state::HANDSHAKING:
-		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
-		else if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_DATA){
+		if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_DATA){
 			PX4_INFO("[Debug] Received handshake key");
 			_crypt->recv_public_key();
 		}
@@ -167,9 +166,14 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 			PX4_INFO("[Debug] Ascertaining if the correct key was obtained");
 			_crypt->finalize_handshake();
 		}
-		else return;
+		if(msg->msgid != MAVLINK_MSG_ID_HEARTBEAT) break;
 		break;
 	case crypt_state::READY:
+		if (msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_REQUEST) {
+			_crypt->initiate_handshake();
+			return;
+		}
+
 		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
 		else{
 			PX4_INFO("Received message");
