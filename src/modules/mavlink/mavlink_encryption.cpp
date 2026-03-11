@@ -2,13 +2,12 @@
 #include "mavlink_encryption.h"
 
 MavlinkCrypt::MavlinkCrypt(Mavlink *parent) :
-	_state(crypt_state::UNINITIALIZED),
+	_state(crypt_state::IDLE),
 	_mavlink(parent)
 {
 	PX4_INFO("[Debug] MavLinkCrypt Initializing");
-    PX4_INFO("[Debug] Changing state to INITIALIZED");
-    if(_generate_key_pair()) _state = crypt_state::INITIALIZED;
-    else PX4_INFO("[Debug] Failed to initialize");
+
+    if(!_generate_key_pair()) PX4_ERR("[Debug] Failed to initialize");
 }
 
 MavlinkCrypt::~MavlinkCrypt()
@@ -36,15 +35,22 @@ void MavlinkCrypt::decrypt_payload(
 			uint16_t len
 		)
 {
-    crypto_chacha20_ctr(payload, payload, len, _shared_key, _temp_nonce, 0);
+    // crypto_chacha20_ctr(payload, payload, len, _shared_key, _temp_nonce, 0);
 }
 
-void MavlinkCrypt::initiate_handshake()
+void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[32])
 {
-    PX4_INFO("[Debug] Changing state to HANDSHAKING");
-    _state = crypt_state::HANDSHAKING;
+    memcpy(_recvd_public_key, public_key, 32);
+    memcpy(_recvd_nonce, nonce, 32);
+
+    PX4_INFO("Received public key");
+    print_key(_recvd_public_key, 32);
+
+    PX4_INFO("Received Nonce");
+    print_key(_recvd_nonce, 32);
+
     _send_public_key();
-	return;
+    _state = crypt_state::WAIT_FINAL;
 }
 
 bool MavlinkCrypt::_generate_key_pair()
@@ -66,12 +72,19 @@ bool MavlinkCrypt::_generate_key_pair()
 
 bool MavlinkCrypt::_send_public_key(){
 	if (_mavlink) {
-		mavlink_msg_key_exchange_data_send(
-			_mavlink->get_channel(),
-			255,
-			190,
-			_public_key
-		);
+		// mavlink_msg_key_exchange_data_send(
+		// 	_mavlink->get_channel(),
+		// 	255,
+		// 	190,
+		// 	_public_key
+		// );
+        mavlink_msg_secure_handshake_send(
+            _mavlink->get_channel(),
+            _mavlink->get_system_id(),
+            _recvd_nonce,
+            1,
+            _public_key
+        );
 
 		PX4_INFO("[Debug] Should have sent public key");
 		print_key(_public_key, 32);
@@ -82,54 +95,52 @@ bool MavlinkCrypt::_send_public_key(){
 	return 1;
 }
 
+// void MavlinkCrypt::recv_public_key(uint8_t public_key[32]){
+//     PX4_INFO("[Debug] Received public key from GCS");
+//     print_key(public_key, 32);
+
+//     PX4_INFO("[Debug] Generating shared key");
+//     crypto_x25519(_shared_key, _secret_key, public_key);
+
+//     print_key(_shared_key, 32);
+
+//     finalize_handshake();
+// }
+
+
+bool MavlinkCrypt::_random_num_gen(uint8_t* buffer, uint8_t size){
+    int fd = open("/dev/urandom", O_RDONLY);
+
+    if(fd<0){
+        PX4_ERR("Failed to open /dev/urandom");
+        return false;
+    }
+
+    // Read until buffer is full or there is an error
+    size_t total_read = 0;
+    while (total_read < size) {
+        ssize_t n = read(fd, buffer + total_read, size - total_read);
+        if (n <= 0) break;
+        total_read += n;
+    }
+
+    close(fd);
+
+    if (total_read != size) {
+        PX4_ERR("Insufficient entropy: read %zu of %u", total_read, size);
+        return false;
+    }
+
+    return true;
+}
+
 void MavlinkCrypt::print_key(uint8_t* key,
-                             size_t len) {
+                             size_t len)
+{
     printf("Key: ");
     for (size_t i = 0; i < len; i++) {
         printf("%02x", key[i]);
     }
     printf("\n");
     return;
-}
-
-void MavlinkCrypt::recv_public_key(uint8_t public_key[32]){
-    PX4_INFO("[Debug] Received public key from GCS");
-    print_key(public_key, 32);
-
-    PX4_INFO("[Debug] Generating shared key");
-    crypto_x25519(_shared_key, _secret_key, public_key);
-
-    print_key(_shared_key, 32);
-
-    finalize_handshake();
-
-}
-
-void MavlinkCrypt::finalize_handshake(){
-    PX4_INFO("[Debug] Just passing the check for testing");
-
-    PX4_INFO("[Debug] Changing state to READY");
-    _state = crypt_state::READY;
-}
-
-bool MavlinkCrypt::_random_num_gen(uint8_t* buffer, uint8_t size){
-    int fd = open("/dev/urandom", O_RDONLY);
-
-    if(fd>=0){
-        ssize_t bytes_read = read(fd, buffer, size);
-
-        close(fd);
-
-        return true;
-
-        if(bytes_read != size){
-            PX4_ERR("[Debug] Error in random number generator");
-            return false;
-        }
-    }else {
-        PX4_ERR("[Debug] /dev/urandom is not available");
-        return false;
-    }
-
-    return false;
 }

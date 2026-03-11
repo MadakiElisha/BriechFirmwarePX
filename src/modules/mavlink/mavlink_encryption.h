@@ -33,11 +33,10 @@ struct encrypted_message_s {
 };
 
 enum class crypt_state : uint8_t{
-	UNINITIALIZED,
-	INITIALIZED,
-	HANDSHAKING,
-	VERIFYING,
-	READY
+	IDLE,
+	WAIT_FINAL,
+	ESTABLISHED,
+	DISCONNECTED,
 };
 
 class Mavlink; // Creating a class that will be used to create the null pointer which will point to the mavlink class on startup
@@ -66,9 +65,7 @@ class MavlinkCrypt
 			uint16_t len
 		);
 
-		void initiate_handshake();
-		void recv_public_key(uint8_t public_key[32]);
-		void finalize_handshake();
+		void initiate_handshake(uint8_t public_key[32], uint8_t nonce[32]);
 
 		crypt_state state(){
 			return _state;
@@ -80,8 +77,11 @@ class MavlinkCrypt
 		unsigned char _secret_key[32];
 		unsigned char _public_key[32];
 
+		unsigned char _recvd_public_key[32];
+		unsigned char _recvd_nonce[32];
+
 		unsigned char _shared_key[32];
-		unsigned char _temp_nonce[8] = {0};
+		unsigned char _nonce[8] = {0};
 
 		crypt_state _state;
 		Mavlink *_mavlink{nullptr};

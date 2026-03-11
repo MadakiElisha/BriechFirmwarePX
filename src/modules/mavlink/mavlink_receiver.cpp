@@ -145,63 +145,21 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 {
 	switch (_crypt->state())
 	{
-	case crypt_state::UNINITIALIZED:
+
+	case crypt_state::IDLE:
 		// Only allow heartbeats through
-		if(msg->msgid != MAVLINK_MSG_ID_HEARTBEAT) return;
-		break;
-	case crypt_state::INITIALIZED:
-		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
+		// if(msg->msgid != MAVLINK_MSG_ID_HEARTBEAT) return;
+		if (msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
+			PX4_INFO("We are getting a request from a lil guy to connect, cute");
+			mavlink_secure_handshake_t handshake;
+			mavlink_msg_secure_handshake_decode(msg, &handshake);
 
-		else if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_REQUEST){
-			_crypt->initiate_handshake();
-		}
-		return;
-		break;
-	case crypt_state::HANDSHAKING:
-		if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_DATA){
-			PX4_INFO("[Debug] Received handshake key");
-
-			mavlink_key_exchange_data_t exchange_msg;
-
-			mavlink_msg_key_exchange_data_decode(msg, &exchange_msg);
-
-			_crypt->recv_public_key(exchange_msg.public_key);
-		}
-		else if(msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_CONFIRM){
-			PX4_INFO("[Debug] Ascertaining if the correct key was obtained");
-			_crypt->finalize_handshake();
-		}
-		if(msg->msgid != MAVLINK_MSG_ID_HEARTBEAT) break;
-		break;
-	case crypt_state::READY:
-		if (msg->msgid == MAVLINK_MSG_ID_KEY_EXCHANGE_REQUEST) {
-			_crypt->initiate_handshake();
-			return;
-		}
-
-		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
-		else{
-			PX4_INFO("Received message");
-			// perform decryption here
-			uint8_t *payload = (uint8_t *)_MAV_PAYLOAD_NON_CONST(msg);
-
-			switch (msg->msgid){
-				case MAVLINK_MSG_ID_STATUSTEXT:
-					// Text starts at offset 1 (after severity)
-					_crypt->decrypt_payload(payload + 1, 50);
-					break;
-				case MAVLINK_MSG_ID_COMMAND_LONG:
-					// Decrypt parameters if needed
-					_crypt->decrypt_payload(payload, msg->len);
-					break;
-				default:
-					_crypt->decrypt_payload(payload, msg->len);
-					break;
-			}
+			_crypt->initiate_handshake(handshake.key, handshake.nonce);
 		}
 		break;
 	default:
 		break;
+
 	}
 	// PX4_INFO("[DEBUGGING] Got msg ID: %u from Sys: %u", msg->msgid, msg->sysid);
 
