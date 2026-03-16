@@ -67,6 +67,8 @@ class MavlinkCrypt
 
 		void initiate_handshake(uint8_t public_key[32], uint8_t nonce[32]);
 
+		void verify_handshake(uint8_t pass_key[32]);
+
 		crypt_state state(){
 			return _state;
 		}
@@ -83,9 +85,12 @@ class MavlinkCrypt
 		unsigned char _shared_key[32];
 		unsigned char _nonce[8] = {0};
 
+		unsigned char _session_key[32];
+
+		const char* _mission_password = "oscar-oscar-papa-sierra";
+
 		crypt_state _state;
 		Mavlink *_mavlink{nullptr};
-
 
 		bool _generate_key_pair();
 		bool _send_public_key();

@@ -38,6 +38,7 @@ void MavlinkCrypt::decrypt_payload(
     // crypto_chacha20_ctr(payload, payload, len, _shared_key, _temp_nonce, 0);
 }
 
+
 void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[32])
 {
     memcpy(_recvd_public_key, public_key, 32);
@@ -49,9 +50,89 @@ void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[32])
     PX4_INFO("Received Nonce");
     print_key(_recvd_nonce, 32);
 
+    // Obtain shared key and create session key
+    crypto_x25519(_shared_key, _secret_key, _recvd_public_key);
+
+    PX4_INFO("Generated Shared Key");
+    print_key(_shared_key, 32);
+
+    // Create session key
+    crypto_blake2b_ctx ctx;
+    crypto_blake2b_init(&ctx);
+
+    crypto_blake2b_update(&ctx, _shared_key, 32);
+    crypto_blake2b_update(&ctx, _recvd_nonce, 32);
+    crypto_blake2b_update(&ctx, (const uint8_t*)_mission_password, strlen(_mission_password));
+
+    uint8_t full_hash[64];
+    crypto_blake2b_final(&ctx, full_hash);
+    memcpy(_session_key, full_hash, 32);
+
+    PX4_INFO("Generated Session Key");
+    print_key(_session_key, 32);
+
+    crypto_wipe(_shared_key, 32);
+    crypto_wipe(_secret_key, 32);
+
+
+    // This has to wait until the above is done to ensure that the sequence follows a defined order and prevents issues
     _send_public_key();
     _state = crypt_state::WAIT_FINAL;
 }
+
+
+void MavlinkCrypt::verify_handshake(uint8_t pass_key[32])
+{
+    uint8_t counter_nonce[16] = {0};
+    uint8_t decrypted_password[32];
+    uint8_t response_key[32];
+
+    uint8_t *monocypher_nonce_ptr = &counter_nonce[8];
+
+    memset(counter_nonce, 0, 16);
+    counter_nonce[8] = _mavlink->get_system_id();
+
+    // Decrypt the pass key
+    PX4_INFO("[Debug] Encrypted Pass Key");
+    print_key(pass_key, 32);
+
+    PX4_INFO("[Debug] Decryption Nonce");
+    print_key(counter_nonce, 16);
+
+
+    crypto_chacha20_ctr(decrypted_password, pass_key, 32, _session_key, monocypher_nonce_ptr, 0);
+
+
+    // Re-encrypt the pass key
+    memset(counter_nonce, 0, 16);
+    counter_nonce[8] = 255;
+
+    crypto_chacha20_ctr(response_key, decrypted_password, 32, _session_key, monocypher_nonce_ptr, 0);
+
+    PX4_INFO("[Debug] Re-encrypted Pass Key");
+    print_key(response_key, 32);
+
+    PX4_INFO("[Debug] Re-encryption Nonce");
+    print_key(counter_nonce, 16);
+
+
+    // Send the reencrypted pass
+
+    uint8_t zero_nonce[32] = {0};
+    mavlink_msg_secure_handshake_send(
+        _mavlink->get_channel(),
+        255,
+        zero_nonce,
+        2, // State: Verification Response
+        response_key
+    );
+
+    crypto_wipe(decrypted_password, 32);
+
+    PX4_INFO("Handshake Verification Sent!");
+    _state = crypt_state::ESTABLISHED;
+}
+
 
 bool MavlinkCrypt::_generate_key_pair()
 {

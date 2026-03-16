@@ -147,16 +147,31 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	{
 
 	case crypt_state::IDLE:
-		// Only allow heartbeats through
-		// if(msg->msgid != MAVLINK_MSG_ID_HEARTBEAT) return;
-		if (msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
+		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
+		else if (msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
 			PX4_INFO("We are getting a request from a lil guy to connect, cute");
 			mavlink_secure_handshake_t handshake;
 			mavlink_msg_secure_handshake_decode(msg, &handshake);
 
 			_crypt->initiate_handshake(handshake.key, handshake.nonce);
 		}
+		else
+		{
+			return;
+		}
+
 		break;
+	case crypt_state::WAIT_FINAL:
+		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
+		else if (msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
+			mavlink_secure_handshake_t handshake;
+			mavlink_msg_secure_handshake_decode(msg, &handshake);
+			if(handshake.state==0){_crypt->initiate_handshake(handshake.key, handshake.nonce);}
+			else if (handshake.state==2){
+				PX4_INFO("Received the challenge successfully");
+				_crypt->verify_handshake(handshake.key);
+			}
+		}
 	default:
 		break;
 
