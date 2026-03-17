@@ -60,9 +60,12 @@ class MavlinkCrypt
 			size_t *plaintext_len
 		);
 
-		void decrypt_payload(
+		bool decrypt_payload(
 			uint8_t *payload,
-			uint16_t len
+			uint8_t *cipher,
+			size_t len,
+			uint8_t *nonce,
+			uint8_t *tag
 		);
 
 		void initiate_handshake(uint8_t public_key[32], uint8_t nonce[24]);

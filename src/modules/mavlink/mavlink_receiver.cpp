@@ -174,11 +174,44 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 				_crypt->verify_handshake(handshake.key, handshake.nonce, handshake.tag);
 			}
 		}
+		break;
 	case crypt_state::ESTABLISHED:
 		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
 		else if(msg->msgid == MAVLINK_MSG_ID_OBFUSCATED_DATA){
-			PX4_INFO("Received command to arm, I will do no such thing!");
+			mavlink_obfuscated_data_t obfuscated;
+			mavlink_msg_obfuscated_data_decode(msg, &obfuscated);
+
+			uint8_t decrypted_payload[280];
+			if (_crypt->decrypt_payload(decrypted_payload, obfuscated.data, obfuscated.len, obfuscated.nonce, obfuscated.tag)) {
+
+			mavlink_message_t inner_msg;
+			mavlink_status_t inner_status;
+			bool found_inner = false;
+
+			for (uint8_t i = 0; i < obfuscated.len; i++) {
+				if (mavlink_parse_char(MAVLINK_COMM_0, decrypted_payload[i], &inner_msg, &inner_status)) {
+					// Overwrite the original msg struct with the inner_msg content
+					*msg = inner_msg;
+					found_inner = true;
+					PX4_INFO("[Debug] Message received from GCS");
+					break;
+				}
+			}
+
+			if (!found_inner) {
+				PX4_ERR("[Crypt] No MAVLINK Packet found. Parser status: %d", inner_status.parse_error);
+				return; // Decrypted fine, but didn't find a valid MAVLink packet inside
+			}
+
+			// Fall through to the rest of handle_message
+			break;
+
+			} else {
+			PX4_ERR("[Crypt] Decryption failed");
+			return;
+			}
 		}
+		break;
 	default:
 		break;
 

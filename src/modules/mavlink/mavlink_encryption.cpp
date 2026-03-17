@@ -30,12 +30,20 @@ int MavlinkCrypt::decrypt_msg(
 	return 1;
 }
 
-void MavlinkCrypt::decrypt_payload(
+bool MavlinkCrypt::decrypt_payload(
 			uint8_t *payload,
-			uint16_t len
+			uint8_t *cipher,
+			size_t len,
+			uint8_t *nonce,
+			uint8_t *tag
 		)
 {
-    // crypto_chacha20_ctr(payload, payload, len, _shared_key, _temp_nonce, 0);
+    if (crypto_unlock_aead(payload, _session_key, nonce, tag, NULL, 0, cipher, len) == 0) {
+        return true;
+    }
+
+    // Integrity check failed! Someone tampered with the message or the key is wrong.
+    return false;
 }
 
 
