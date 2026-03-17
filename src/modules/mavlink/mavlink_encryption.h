@@ -65,9 +65,9 @@ class MavlinkCrypt
 			uint16_t len
 		);
 
-		void initiate_handshake(uint8_t public_key[32], uint8_t nonce[32]);
+		void initiate_handshake(uint8_t public_key[32], uint8_t nonce[24]);
 
-		void verify_handshake(uint8_t pass_key[32]);
+		void verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uint8_t mac[16]);
 
 		crypt_state state(){
 			return _state;
@@ -80,7 +80,7 @@ class MavlinkCrypt
 		unsigned char _public_key[32];
 
 		unsigned char _recvd_public_key[32];
-		unsigned char _recvd_nonce[32];
+		unsigned char _recvd_nonce[24];
 
 		unsigned char _shared_key[32];
 		unsigned char _nonce[8] = {0};

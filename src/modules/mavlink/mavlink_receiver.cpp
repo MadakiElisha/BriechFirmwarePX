@@ -161,16 +161,23 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		}
 
 		break;
+
 	case crypt_state::WAIT_FINAL:
 		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
+
 		else if (msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
 			mavlink_secure_handshake_t handshake;
 			mavlink_msg_secure_handshake_decode(msg, &handshake);
-			if(handshake.state==0){_crypt->initiate_handshake(handshake.key, handshake.nonce);}
-			else if (handshake.state==2){
+			if (handshake.state==2)
+			{
 				PX4_INFO("Received the challenge successfully");
-				_crypt->verify_handshake(handshake.key);
+				_crypt->verify_handshake(handshake.key, handshake.nonce, handshake.tag);
 			}
+		}
+	case crypt_state::ESTABLISHED:
+		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
+		else if(msg->msgid == MAVLINK_MSG_ID_OBFUSCATED_DATA){
+			PX4_INFO("Received command to arm, I will do no such thing!");
 		}
 	default:
 		break;

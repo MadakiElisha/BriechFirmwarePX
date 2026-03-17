@@ -39,16 +39,16 @@ void MavlinkCrypt::decrypt_payload(
 }
 
 
-void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[32])
+void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[24])
 {
     memcpy(_recvd_public_key, public_key, 32);
-    memcpy(_recvd_nonce, nonce, 32);
+    memcpy(_recvd_nonce, nonce, 24);
 
     PX4_INFO("Received public key");
     print_key(_recvd_public_key, 32);
 
     PX4_INFO("Received Nonce");
-    print_key(_recvd_nonce, 32);
+    print_key(_recvd_nonce, 24);
 
     // Obtain shared key and create session key
     crypto_x25519(_shared_key, _secret_key, _recvd_public_key);
@@ -61,7 +61,7 @@ void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[32])
     crypto_blake2b_init(&ctx);
 
     crypto_blake2b_update(&ctx, _shared_key, 32);
-    crypto_blake2b_update(&ctx, _recvd_nonce, 32);
+    crypto_blake2b_update(&ctx, _recvd_nonce, 24);
     crypto_blake2b_update(&ctx, (const uint8_t*)_mission_password, strlen(_mission_password));
 
     uint8_t full_hash[64];
@@ -81,53 +81,53 @@ void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[32])
 }
 
 
-void MavlinkCrypt::verify_handshake(uint8_t pass_key[32])
+void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uint8_t mac[16])
 {
-    uint8_t counter_nonce[16] = {0};
-    uint8_t decrypted_password[32];
-    uint8_t response_key[32];
 
-    uint8_t *monocypher_nonce_ptr = &counter_nonce[8];
-
-    memset(counter_nonce, 0, 16);
-    counter_nonce[8] = _mavlink->get_system_id();
+    uint8_t plain_key[32] = {};
 
     // Decrypt the pass key
-    PX4_INFO("[Debug] Encrypted Pass Key");
-    print_key(pass_key, 32);
 
-    PX4_INFO("[Debug] Decryption Nonce");
-    print_key(counter_nonce, 16);
-
-
-    crypto_chacha20_ctr(decrypted_password, pass_key, 32, _session_key, monocypher_nonce_ptr, 0);
-
+    // PX4_INFO("[Debug] Encrypted Pass Key");
+    // print_key(pass_key, 32);
+    // PX4_INFO("[Debug] Decryption Nonce");
+    // print_key(nonce, 24);
+    if (crypto_unlock_aead(plain_key, _session_key, nonce, mac, NULL, 0, pass_key, 32) == 0) {
+        PX4_INFO("[Crypto] Decrypted verification key");
+    } else {
+        // Integrity check FAILED.
+        // The data was corrupted or the key/nonce is incorrect.
+        // DO NOT trust the 'plain' buffer at this point; wipe it.
+        PX4_ERR("[Crypto] Decrypting key failed");
+        return;
+    }
 
     // Re-encrypt the pass key
-    memset(counter_nonce, 0, 16);
-    counter_nonce[8] = 255;
+    uint8_t encrypted_pass_key[32] = {0};
+    uint8_t new_mac[16] = {0};
+    uint8_t new_nonce[24] = {0};
+    _random_num_gen(new_nonce, 24);
 
-    crypto_chacha20_ctr(response_key, decrypted_password, 32, _session_key, monocypher_nonce_ptr, 0);
+    crypto_lock_aead(new_mac, encrypted_pass_key, _session_key, new_nonce, NULL, 0, plain_key, 32);
 
-    PX4_INFO("[Debug] Re-encrypted Pass Key");
-    print_key(response_key, 32);
-
-    PX4_INFO("[Debug] Re-encryption Nonce");
-    print_key(counter_nonce, 16);
+    // PX4_INFO("[Debug] Re-encrypted Pass Key");
+    // print_key(encrypted_pass_key, 32);
+    // PX4_INFO("[Debug] Re-encryption Nonce");
+    // print_key(new_nonce, 16);
 
 
     // Send the reencrypted pass
-
-    uint8_t zero_nonce[32] = {0};
     mavlink_msg_secure_handshake_send(
         _mavlink->get_channel(),
         255,
-        zero_nonce,
+        new_nonce,
         2, // State: Verification Response
-        response_key
+        encrypted_pass_key,
+        new_mac
     );
 
-    crypto_wipe(decrypted_password, 32);
+    crypto_wipe(plain_key, 32);
+    crypto_wipe(new_nonce, 32);
 
     PX4_INFO("Handshake Verification Sent!");
     _state = crypt_state::ESTABLISHED;
@@ -151,7 +151,9 @@ bool MavlinkCrypt::_generate_key_pair()
     return true;
 }
 
-bool MavlinkCrypt::_send_public_key(){
+
+bool MavlinkCrypt::_send_public_key()
+{
 	if (_mavlink) {
 		// mavlink_msg_key_exchange_data_send(
 		// 	_mavlink->get_channel(),
@@ -159,12 +161,16 @@ bool MavlinkCrypt::_send_public_key(){
 		// 	190,
 		// 	_public_key
 		// );
+        uint8_t zero_tag[16] = {0};
+        uint8_t zero_nonce[24] = {0};
+
         mavlink_msg_secure_handshake_send(
             _mavlink->get_channel(),
             _mavlink->get_system_id(),
-            _recvd_nonce,
+            zero_nonce,
             1,
-            _public_key
+            _public_key,
+            zero_tag
         );
 
 		PX4_INFO("[Debug] Should have sent public key");
@@ -189,7 +195,8 @@ bool MavlinkCrypt::_send_public_key(){
 // }
 
 
-bool MavlinkCrypt::_random_num_gen(uint8_t* buffer, uint8_t size){
+bool MavlinkCrypt::_random_num_gen(uint8_t* buffer, uint8_t size)
+{
     int fd = open("/dev/urandom", O_RDONLY);
 
     if(fd<0){
@@ -215,8 +222,7 @@ bool MavlinkCrypt::_random_num_gen(uint8_t* buffer, uint8_t size){
     return true;
 }
 
-void MavlinkCrypt::print_key(uint8_t* key,
-                             size_t len)
+void MavlinkCrypt::print_key(uint8_t* key, size_t len)
 {
     printf("Key: ");
     for (size_t i = 0; i < len; i++) {
