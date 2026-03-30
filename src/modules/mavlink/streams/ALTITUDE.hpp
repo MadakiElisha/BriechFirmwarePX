@@ -126,7 +126,6 @@ private:
 		if (lpos_updated || (air_data_updated && lpos_timeout)) {
 			msg.time_usec = hrt_absolute_time();
 			mavlink_msg_altitude_send_struct(_mavlink->get_channel(), &msg);
-
 			return true;
 		}
 

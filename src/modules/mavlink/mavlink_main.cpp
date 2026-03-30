@@ -776,6 +776,18 @@ void Mavlink::send_finish()
 		return;
 	}
 
+
+	// // Extract the message id
+	// uint32_t msgid = (_buf[0] == 0xFD) ? (_buf[7] | _buf[8] << 8 | _buf[9] << 16) : _buf[5];
+
+	// // Check if it is allowed to pass through
+	// if (msgid != MAVLINK_MSG_ID_HEARTBEAT		&&
+	//     msgid != MAVLINK_MSG_ID_SECURE_HANDSHAKE	&&
+	//     msgid != MAVLINK_MSG_ID_OBFUSCATED_DATA)
+	// {
+	// 	// The message here is to be encrypted
+	// }
+
 	int ret = -1;
 
 	// send message to UART
@@ -839,6 +851,7 @@ void Mavlink::send_finish()
 
 void Mavlink::send_bytes(const uint8_t *buf, unsigned packet_len)
 {
+
 	if (!_tx_buffer_low) {
 		if (_buf_fill + packet_len < sizeof(_buf)) {
 			memcpy(&_buf[_buf_fill], buf, packet_len);
