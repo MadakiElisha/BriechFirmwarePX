@@ -38,9 +38,10 @@ bool MavlinkCrypt::decrypt_payload(
 			uint8_t *tag
 		)
 {
-    if (crypto_unlock_aead(payload, _session_key, nonce, tag, NULL, 0, cipher, len) == 0) {
+    if (crypto_aead_unlock(payload, tag, _session_key, nonce, NULL, 0, cipher, len) == 0) {
         return true;
     }
+
 
     // Integrity check failed! Someone tampered with the message or the key is wrong.
     return false;
@@ -66,13 +67,13 @@ void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[24])
 
     // Create session key
     crypto_blake2b_ctx ctx;
-    crypto_blake2b_init(&ctx);
+    crypto_blake2b_init(&ctx, 32);
 
     crypto_blake2b_update(&ctx, _shared_key, 32);
     crypto_blake2b_update(&ctx, _recvd_nonce, 24);
     crypto_blake2b_update(&ctx, (const uint8_t*)_mission_password, strlen(_mission_password));
 
-    uint8_t full_hash[64];
+    uint8_t full_hash[32];
     crypto_blake2b_final(&ctx, full_hash);
     memcpy(_session_key, full_hash, 32);
 
@@ -100,7 +101,7 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uin
     // print_key(pass_key, 32);
     // PX4_INFO("[Debug] Decryption Nonce");
     // print_key(nonce, 24);
-    if (crypto_unlock_aead(plain_key, _session_key, nonce, mac, NULL, 0, pass_key, 32) == 0) {
+    if (crypto_aead_unlock(plain_key, mac, _session_key, nonce, NULL, 0, pass_key, 32) == 0) {
         PX4_INFO("[Crypto] Decrypted verification key");
     } else {
         // Integrity check FAILED.
@@ -116,7 +117,7 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uin
     uint8_t new_nonce[24] = {0};
     _random_num_gen(new_nonce, 24);
 
-    crypto_lock_aead(new_mac, encrypted_pass_key, _session_key, new_nonce, NULL, 0, plain_key, 32);
+    crypto_aead_lock(encrypted_pass_key, new_mac, _session_key, new_nonce, NULL, 0, plain_key, 32);
 
     // PX4_INFO("[Debug] Re-encrypted Pass Key");
     // print_key(encrypted_pass_key, 32);
