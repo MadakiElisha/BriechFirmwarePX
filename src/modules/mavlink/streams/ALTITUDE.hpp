@@ -116,6 +116,7 @@ private:
 				}
 			}
 
+
 			lpos_updated = true;
 		}
 
