@@ -59,11 +59,15 @@ private:
 
 	bool send() override
 	{
+		if (_mavlink->_crypt->state() != crypt_state::ESTABLISHED || _mavlink == nullptr || _mavlink->_crypt == nullptr) {
+			return false;
+		}
+
 		actuator_outputs_s act;
 
 		if (_act_output_sub.update(&act)) {
+			// 1. Prepare inner (original) message
 			mavlink_actuator_output_status_t msg{};
-
 			msg.time_usec = act.timestamp;
 			msg.active = act.noutputs;
 
@@ -74,9 +78,34 @@ private:
 				msg.actuator[i] = act.output[i];
 			}
 
-			mavlink_msg_actuator_output_status_send_struct(_mavlink->get_channel(), &msg);
+			// Old message being sent
+			// mavlink_msg_actuator_output_status_send_struct(_mavlink->get_channel(), &msg);
 
-			return true;
+			// 2. Place inner message into a buffer
+			uint8_t payload_buffer[sizeof(mavlink_actuator_output_status_t)];
+			memcpy(payload_buffer, &msg, sizeof(msg));
+
+
+			// 3. Prepare the wrapper
+			mavlink_obfuscated_data_t wrapper_msg{};
+			wrapper_msg.len = sizeof(payload_buffer);
+
+			// 4. ENCRYPTION
+			int crypt_ret = _mavlink->_crypt->encrypt_msg(
+				payload_buffer,
+				sizeof(payload_buffer),
+				wrapper_msg.nonce,
+				wrapper_msg.tag,
+				wrapper_msg.data
+			);
+
+			if (crypt_ret == 0) {
+				mavlink_msg_obfuscated_data_send_struct(_mavlink->get_channel(), &wrapper_msg);
+				return true;
+			} else {
+				PX4_ERR("Encryption failed, packet dropped.");
+				return false;
+			}
 		}
 
 		return false;

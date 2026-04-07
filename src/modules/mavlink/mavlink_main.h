@@ -491,9 +491,11 @@ public:
 
 	bool radio_status_critical() const { return _radio_status_critical; }
 
+public:
+	MavlinkCrypt *_crypt{nullptr};
+
 private:
 	//	THIS IS WHERE THE ENCRYPTION CLASS IS ADDED
-	MavlinkCrypt *_crypt{nullptr};
 	MavlinkReceiver 	_receiver;
 
 
@@ -723,4 +725,5 @@ private:
 	// Disallow copy construction and move assignment.
 	Mavlink(const Mavlink &) = delete;
 	Mavlink operator=(const Mavlink &) = delete;
+
 };

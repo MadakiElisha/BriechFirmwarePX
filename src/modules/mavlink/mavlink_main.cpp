@@ -1087,6 +1087,7 @@ Mavlink::send_autopilot_capabilities()
 	vehicle_status_s status;
 
 	if (_vehicle_status_sub.copy(&status)) {
+		// 1. Prepare inner message
 		mavlink_autopilot_version_t msg{};
 
 		msg.capabilities = MAV_PROTOCOL_CAPABILITY_MISSION_FLOAT;
@@ -1159,8 +1160,36 @@ Mavlink::send_autopilot_capabilities()
 		msg.uid += mavlink_system.sysid - 1;
 		msg.uid2[0] += mavlink_system.sysid - 1;
 #endif /* CONFIG_ARCH_BOARD_PX4_SITL */
-		mavlink_msg_autopilot_version_send_struct(get_channel(), &msg);
-		return true;
+
+		// mavlink_msg_autopilot_version_send_struct(get_channel(), &msg);
+		// return true;
+
+
+		// 2. Place inner message into a buffer
+		uint8_t payload_buffer[sizeof(mavlink_autopilot_version_t)];
+		memcpy(payload_buffer, &msg, sizeof(msg));
+
+
+		// 3. Prepare the wrapper
+		mavlink_obfuscated_data_t wrapper_msg{};
+		wrapper_msg.len = sizeof(payload_buffer);
+
+		// 4. ENCRYPTION
+		int crypt_ret = _crypt->encrypt_msg(
+			payload_buffer,
+			sizeof(payload_buffer),
+			wrapper_msg.nonce,
+			wrapper_msg.tag,
+			wrapper_msg.data
+		);
+
+		if (crypt_ret == 0) {
+			mavlink_msg_obfuscated_data_send_struct(get_channel(), &wrapper_msg);
+			return true;
+		} else {
+			PX4_ERR("Encryption failed, packet dropped.");
+			return false;
+		}
 	}
 
 	return false;

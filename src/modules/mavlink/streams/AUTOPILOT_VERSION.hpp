@@ -55,6 +55,10 @@ private:
 
 	bool send() override
 	{
+		if (_mavlink->_crypt->state() != crypt_state::ESTABLISHED || _mavlink == nullptr || _mavlink->_crypt == nullptr) {
+			return false;
+		}
+
 		return _mavlink->send_autopilot_capabilities();
 	}
 };

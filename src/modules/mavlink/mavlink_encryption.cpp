@@ -17,9 +17,20 @@ MavlinkCrypt::~MavlinkCrypt()
 int MavlinkCrypt::encrypt_msg(
 	const uint8_t *plaintext,
 	size_t plaintext_len,
-	encrypted_message_s *output)
+    uint8_t *nonce,
+    uint8_t *tag,
+	uint8_t *output)
 {
-	return 1;
+	if (_state != crypt_state::ESTABLISHED) {
+        // PX4_ERR("Cannot encrypt message: Handshake not established");
+        return -1;
+    }
+
+    _random_num_gen(nonce, 24);
+
+    crypto_aead_lock(output, tag, _session_key, nonce, NULL, 0, plaintext, plaintext_len);
+
+    return 0;
 }
 
 int MavlinkCrypt::decrypt_msg(
@@ -123,7 +134,7 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uin
     // print_key(encrypted_pass_key, 32);
     // PX4_INFO("[Debug] Re-encryption Nonce");
     // print_key(new_nonce, 16);
-    // Something
+
 
     // Send the reencrypted pass
     mavlink_msg_secure_handshake_send(

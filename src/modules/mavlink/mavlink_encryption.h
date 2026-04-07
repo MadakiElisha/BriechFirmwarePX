@@ -51,7 +51,9 @@ class MavlinkCrypt
 		int encrypt_msg(
 			const uint8_t *plaintext,
 			size_t plaintext_len,
-			encrypted_message_s *output
+			uint8_t *nonce,
+			uint8_t *len,
+			uint8_t *output
 		);
 
 		int decrypt_msg(

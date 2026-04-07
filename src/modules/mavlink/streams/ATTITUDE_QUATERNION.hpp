@@ -63,9 +63,13 @@ private:
 
 	bool send() override
 	{
+		if (_mavlink->_crypt->state() != crypt_state::ESTABLISHED || _mavlink == nullptr || _mavlink->_crypt == nullptr) {
+			return false;
+		}
 		vehicle_attitude_s att;
 
 		if (_att_sub.update(&att)) {
+			// 1. Prepare inner message
 			vehicle_angular_velocity_s angular_velocity{};
 			_angular_velocity_sub.copy(&angular_velocity);
 
@@ -100,7 +104,34 @@ private:
 				msg.repr_offset_q[3] = 0.0f;
 			}
 
-			mavlink_msg_attitude_quaternion_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_attitude_quaternion_send_struct(_mavlink->get_channel(), &msg);
+
+			// 2. Place inner message into a buffer
+			uint8_t payload_buffer[sizeof(mavlink_attitude_quaternion_t)];
+			memcpy(payload_buffer, &msg, sizeof(msg));
+
+
+			// 3. Prepare the wrapper
+			mavlink_obfuscated_data_t wrapper_msg{};
+			wrapper_msg.len = sizeof(payload_buffer);
+
+
+			// 4. ENCRYPTION
+			int crypt_ret = _mavlink->_crypt->encrypt_msg(
+				payload_buffer,
+				sizeof(payload_buffer),
+				wrapper_msg.nonce,
+				wrapper_msg.tag,
+				wrapper_msg.data
+			);
+
+			if (crypt_ret == 0) {
+				mavlink_msg_obfuscated_data_send_struct(_mavlink->get_channel(), &wrapper_msg);
+				return true;
+			} else {
+				PX4_ERR("Encryption failed, packet dropped.");
+				return false;
+			}
 
 			return true;
 		}
