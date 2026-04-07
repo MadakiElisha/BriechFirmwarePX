@@ -123,7 +123,7 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uin
     // print_key(encrypted_pass_key, 32);
     // PX4_INFO("[Debug] Re-encryption Nonce");
     // print_key(new_nonce, 16);
-
+    // Something
 
     // Send the reencrypted pass
     mavlink_msg_secure_handshake_send(
