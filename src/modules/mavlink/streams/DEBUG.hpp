@@ -67,8 +67,12 @@ private:
 			msg.ind = debug.ind;
 			msg.value = debug.value;
 
-			mavlink_msg_debug_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_debug_send_struct(_mavlink->get_channel(), &msg);
 
+			// return true;
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_DEBUG, msg);
 			return true;
 		}
 

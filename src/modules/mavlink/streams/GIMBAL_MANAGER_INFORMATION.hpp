@@ -79,8 +79,13 @@ private:
 			msg.yaw_min = gimbal_manager_information.yaw_min;
 			msg.yaw_max = gimbal_manager_information.yaw_max;
 
-			mavlink_msg_gimbal_manager_information_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_gimbal_manager_information_send_struct(_mavlink->get_channel(), &msg);
 
+			// return true;
+
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_GIMBAL_MANAGER_INFORMATION, msg);
 			return true;
 		}
 

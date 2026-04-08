@@ -128,3 +128,51 @@ MavlinkStream::update(const hrt_abstime &t)
 
 	return -1;
 }
+
+
+bool MavlinkStream::crypt_established()
+{
+	if(_mavlink == nullptr || _mavlink->_crypt == nullptr){
+		return false;
+	}
+
+	if(_mavlink->_crypt->state() == crypt_state::ESTABLISHED){
+		return true;
+	}
+
+	return false;
+}
+
+
+bool MavlinkStream::_send_encrypted(uint16_t msg_id, const uint8_t *payload, size_t payload_len)
+{
+
+	if(!crypt_established()){
+		return false;
+	}
+
+	uint8_t payload_buffer[payload_len + 2];
+
+	// Pack 2 bytes of message ID and the struct data into the payload buffer
+	mempcpy(payload_buffer, &msg_id, 2);
+	memcpy(payload_buffer + 2, payload, payload_len);
+
+	mavlink_obfuscated_data_t wrapper_msg{};
+	wrapper_msg.len = payload_len + 2;
+
+	int crypt_ret = _mavlink->_crypt->encrypt_msg(
+		payload_buffer,
+		wrapper_msg.len,
+		wrapper_msg.nonce,
+		wrapper_msg.tag,
+		wrapper_msg.data
+	);
+
+	if (crypt_ret == 0) {
+		mavlink_msg_obfuscated_data_send_struct(_mavlink->get_channel(), &wrapper_msg);
+		return true;
+	}
+
+	return false;
+}
+

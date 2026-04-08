@@ -72,7 +72,9 @@ private:
 				msg.temperature = roundf(sensor_hygrometer.temperature * 100.f); // degrees to centidegrees (int16_t)
 				msg.humidity    = roundf(sensor_hygrometer.humidity);            // % (uint16_t)
 
-				mavlink_msg_hygrometer_sensor_send_struct(_mavlink->get_channel(), &msg);
+				// mavlink_msg_hygrometer_sensor_send_struct(_mavlink->get_channel(), &msg);
+				// [CRYPT]
+				send_encrypted(MAVLINK_MSG_ID_HYGROMETER_SENSOR, msg);
 
 				updated = true;
 			}

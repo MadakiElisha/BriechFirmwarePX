@@ -86,8 +86,12 @@ private:
 			est_msg.pos_horiz_accuracy = est.pos_horiz_accuracy;
 			est_msg.pos_vert_accuracy = est.pos_vert_accuracy;
 			est_msg.flags = est.solution_status_flags;
-			mavlink_msg_estimator_status_send_struct(_mavlink->get_channel(), &est_msg);
+			// mavlink_msg_estimator_status_send_struct(_mavlink->get_channel(), &est_msg);
 
+			// return true;
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_ESTIMATOR_STATUS, est_msg);
 			return true;
 		}
 

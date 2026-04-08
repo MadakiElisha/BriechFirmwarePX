@@ -84,8 +84,12 @@ private:
 			msg.throttle_out = internal_combustion_engine_status.throttle_position_percent;
 			msg.pt_compensation = internal_combustion_engine_status.lambda_coefficient;
 
-			mavlink_msg_efi_status_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_efi_status_send_struct(_mavlink->get_channel(), &msg);
 
+			// return true;
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_EFI_STATUS, msg);
 			return true;
 		}
 

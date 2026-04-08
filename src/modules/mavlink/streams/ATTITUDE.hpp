@@ -61,9 +61,6 @@ private:
 
 	bool send() override
 	{
-		if (_mavlink->_crypt->state() != crypt_state::ESTABLISHED || _mavlink == nullptr || _mavlink->_crypt == nullptr) {
-			return false;
-		}
 
 		vehicle_attitude_s att;
 
@@ -72,45 +69,22 @@ private:
 			vehicle_angular_velocity_s angular_velocity{};
 			_angular_velocity_sub.copy(&angular_velocity);
 
-			mavlink_attitude_t inner_msg{};
+			mavlink_attitude_t msg{};
 
 			const matrix::Eulerf euler = matrix::Quatf(att.q);
-			inner_msg.time_boot_ms = att.timestamp / 1000;
-			inner_msg.roll = euler.phi();
-			inner_msg.pitch = euler.theta();
-			inner_msg.yaw = euler.psi();
+			msg.time_boot_ms = att.timestamp / 1000;
+			msg.roll = euler.phi();
+			msg.pitch = euler.theta();
+			msg.yaw = euler.psi();
 
-			inner_msg.rollspeed = angular_velocity.xyz[0];
-			inner_msg.pitchspeed = angular_velocity.xyz[1];
-			inner_msg.yawspeed = angular_velocity.xyz[2];
+			msg.rollspeed = angular_velocity.xyz[0];
+			msg.pitchspeed = angular_velocity.xyz[1];
+			msg.yawspeed = angular_velocity.xyz[2];
 
-			// mavlink_msg_attitude_send_struct(_mavlink->get_channel(), &inner_msg);
+			// mavlink_msg_attitude_send_struct(_mavlink->get_channel(), &msg);
 
+			return send_encrypted(MAVLINK_MSG_ID_ATTITUDE, msg);
 
-			// 2. Place inner message into a buffer
-			uint8_t payload_buffer[sizeof(mavlink_attitude_t)];
-			memcpy(payload_buffer, &inner_msg, sizeof(inner_msg));
-
-			// 3. Prepare the wrapper
-			mavlink_obfuscated_data_t wrapper_msg{};
-			wrapper_msg.len = sizeof(payload_buffer);
-
-			// 4. Encryption
-			int crypt_ret = _mavlink->_crypt->encrypt_msg(
-				payload_buffer,
-				sizeof(payload_buffer),
-				wrapper_msg.nonce,
-				wrapper_msg.tag,
-				wrapper_msg.data
-			);
-
-			if (crypt_ret == 0) {
-				mavlink_msg_obfuscated_data_send_struct(_mavlink->get_channel(), &wrapper_msg);
-				return true;
-			} else {
-				PX4_ERR("Encryption failed, packet dropped.");
-				return false;
-			}
 		}
 
 

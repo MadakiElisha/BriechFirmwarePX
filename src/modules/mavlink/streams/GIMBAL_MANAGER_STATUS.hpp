@@ -76,8 +76,12 @@ private:
 			msg.secondary_control_sysid = gimbal_manager_status.secondary_control_sysid;
 			msg.secondary_control_compid = gimbal_manager_status.secondary_control_compid;
 
-			mavlink_msg_gimbal_manager_status_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_gimbal_manager_status_send_struct(_mavlink->get_channel(), &msg);
 
+			// return true;
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_GIMBAL_MANAGER_STATUS, msg);
 			return true;
 		}
 

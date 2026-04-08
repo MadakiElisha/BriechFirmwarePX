@@ -109,7 +109,9 @@ private:
 				}
 			}
 
-			mavlink_msg_gps2_raw_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_gps2_raw_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_GPS2_RAW, msg);
 			_last_send_ts = gps.timestamp;
 
 			return true;
@@ -121,7 +123,9 @@ private:
 			msg.vel = UINT16_MAX;
 			msg.cog = UINT16_MAX;
 			msg.satellites_visible = UINT8_MAX;
-			mavlink_msg_gps2_raw_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_gps2_raw_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_GPS2_RAW, msg);
 			_last_send_ts = now;
 
 			return true;

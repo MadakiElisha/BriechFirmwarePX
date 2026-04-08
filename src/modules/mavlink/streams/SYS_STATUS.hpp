@@ -179,8 +179,11 @@ private:
 				msg.battery_remaining = -1;
 			}
 
-			mavlink_msg_sys_status_send_struct(_mavlink->get_channel(), &msg);
-			return true;
+			// mavlink_msg_sys_status_send_struct(_mavlink->get_channel(), &msg);
+			// return true;
+
+			// [CRYPT]
+			return send_encrypted(MAVLINK_MSG_ID_SYS_STATUS, msg);
 		}
 
 		return false;

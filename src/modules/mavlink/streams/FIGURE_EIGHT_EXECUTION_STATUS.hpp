@@ -76,8 +76,12 @@ private:
 			msg_figure_eight_execution_status.y = figure_eight_status.y;
 			msg_figure_eight_execution_status.z = figure_eight_status.z;
 
-			mavlink_msg_figure_eight_execution_status_send_struct(_mavlink->get_channel(), &msg_figure_eight_execution_status);
+			// mavlink_msg_figure_eight_execution_status_send_struct(_mavlink->get_channel(), &msg_figure_eight_execution_status);
 
+			// return true;
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_FIGURE_EIGHT_EXECUTION_STATUS, msg_figure_eight_execution_status);
 			return true;
 		}
 

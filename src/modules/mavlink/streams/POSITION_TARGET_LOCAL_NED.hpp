@@ -128,9 +128,10 @@ private:
 			msg.yaw = pos_sp.yaw;
 			msg.yaw_rate = pos_sp.yawspeed;
 
-			mavlink_msg_position_target_local_ned_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_position_target_local_ned_send_struct(_mavlink->get_channel(), &msg);
+			// return true;
 
-			return true;
+			return send_encrypted(MAVLINK_MSG_ID_POSITION_TARGET_LOCAL_NED, msg);
 		}
 
 		return false;

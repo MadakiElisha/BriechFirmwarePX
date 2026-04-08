@@ -92,9 +92,10 @@ private:
 
 			msg.hdg = math::degrees(matrix::wrap_2pi(lpos.heading)) * 100.0f;
 
-			mavlink_msg_global_position_int_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_global_position_int_send_struct(_mavlink->get_channel(), &msg);
+			// return true;
 
-			return true;
+			return send_encrypted(MAVLINK_MSG_ID_GLOBAL_POSITION_INT, msg);
 		}
 
 		return false;

@@ -98,8 +98,13 @@ private:
 			msg.delta_yaw = gimbal_device_attitude_status.delta_yaw;
 			msg.delta_yaw_velocity = gimbal_device_attitude_status.delta_yaw_velocity;
 
-			mavlink_msg_gimbal_device_attitude_status_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_gimbal_device_attitude_status_send_struct(_mavlink->get_channel(), &msg);
 
+			// return true;
+
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_GIMBAL_DEVICE_ATTITUDE_STATUS, msg);
 			return true;
 		}
 

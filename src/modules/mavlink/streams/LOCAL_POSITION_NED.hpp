@@ -72,10 +72,10 @@ private:
 			msg.vy = lpos.vy;
 			msg.vz = lpos.vz;
 
-			mavlink_msg_local_position_ned_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_local_position_ned_send_struct(_mavlink->get_channel(), &msg);
+			// return true;
 
-			return true;
-
+			return send_encrypted(MAVLINK_MSG_ID_LOCAL_POSITION_NED, msg);
 		}
 
 		return false;

@@ -127,7 +127,12 @@ private:
 			}
 
 			if (atleast_one_esc_updated) {
-				mavlink_msg_esc_status_send_struct(_mavlink->get_channel(), &msg);
+				// mavlink_msg_esc_status_send_struct(_mavlink->get_channel(), &msg);
+				// updated = true;
+
+
+				// [CRYPT]
+				send_encrypted(MAVLINK_MSG_ID_ESC_STATUS, msg);
 				updated = true;
 			}
 		}

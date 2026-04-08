@@ -84,7 +84,9 @@ private:
 
 				msg.time_usec = home.timestamp;
 
-				mavlink_msg_home_position_send_struct(_mavlink->get_channel(), &msg);
+				// mavlink_msg_home_position_send_struct(_mavlink->get_channel(), &msg);
+				// [CRYPT]
+				send_encrypted(MAVLINK_MSG_ID_HOME_POSITION, msg);
 
 				return true;
 			}

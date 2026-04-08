@@ -102,7 +102,9 @@ private:
 			msg.yacc = lpos.ay;
 			msg.zacc = lpos.az;
 
-			mavlink_msg_hil_state_quaternion_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_hil_state_quaternion_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_HIL_STATE_QUATERNION, msg);
 
 			return true;
 		}

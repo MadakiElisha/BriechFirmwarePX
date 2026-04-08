@@ -85,8 +85,13 @@ private:
 			msg.yaw_max = gimbal_device_information.yaw_max;
 			msg.gimbal_device_id = gimbal_device_information.gimbal_device_id;
 
-			mavlink_msg_gimbal_device_information_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_gimbal_device_information_send_struct(_mavlink->get_channel(), &msg);
 
+			// return true;
+
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_GIMBAL_DEVICE_INFORMATION, msg);
 			return true;
 		}
 

@@ -196,7 +196,9 @@ private:
 			msg.temperature = air_data.ambient_temperature;
 			msg.fields_updated = fields_updated;
 
-			mavlink_msg_highres_imu_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_highres_imu_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_HIGHRES_IMU, msg);
 
 			return true;
 		}

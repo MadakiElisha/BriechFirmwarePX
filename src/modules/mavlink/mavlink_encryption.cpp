@@ -108,17 +108,18 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uin
 
     // Decrypt the pass key
 
-    // PX4_INFO("[Debug] Encrypted Pass Key");
-    // print_key(pass_key, 32);
-    // PX4_INFO("[Debug] Decryption Nonce");
-    // print_key(nonce, 24);
+    PX4_INFO("\n[Debug] Encrypted Pass Key");
+    print_key(pass_key, 32);
+    PX4_INFO("\n[Debug] Decryption Nonce");
+    print_key(nonce, 24);
+
     if (crypto_aead_unlock(plain_key, mac, _session_key, nonce, NULL, 0, pass_key, 32) == 0) {
         PX4_INFO("[Crypto] Decrypted verification key");
     } else {
         // Integrity check FAILED.
         // The data was corrupted or the key/nonce is incorrect.
-        // DO NOT trust the 'plain' buffer at this point; wipe it.
         PX4_ERR("[Crypto] Decrypting key failed");
+        crypto_wipe(plain_key, 32);
         return;
     }
 
@@ -130,10 +131,10 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uin
 
     crypto_aead_lock(encrypted_pass_key, new_mac, _session_key, new_nonce, NULL, 0, plain_key, 32);
 
-    // PX4_INFO("[Debug] Re-encrypted Pass Key");
-    // print_key(encrypted_pass_key, 32);
-    // PX4_INFO("[Debug] Re-encryption Nonce");
-    // print_key(new_nonce, 16);
+    PX4_INFO("\n[Debug] Re-encrypted Pass Key");
+    print_key(encrypted_pass_key, 32);
+    PX4_INFO("\n[Debug] Re-encryption Nonce");
+    print_key(new_nonce, 16);
 
 
     // Send the reencrypted pass
@@ -149,7 +150,7 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uin
     crypto_wipe(plain_key, 32);
     crypto_wipe(new_nonce, 32);
 
-    PX4_INFO("Handshake Verification Sent!");
+    PX4_INFO("\nHandshake Verification Sent!");
     _state = crypt_state::ESTABLISHED;
 }
 

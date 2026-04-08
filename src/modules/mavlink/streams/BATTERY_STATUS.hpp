@@ -184,7 +184,11 @@ private:
 					}
 				}
 
-				mavlink_msg_battery_status_send_struct(_mavlink->get_channel(), &bat_msg);
+				// mavlink_msg_battery_status_send_struct(_mavlink->get_channel(), &bat_msg);
+				// updated = true;
+
+				// [CRYPT]
+				send_encrypted(MAVLINK_MSG_ID_BATTERY_STATUS, bat_msg);
 				updated = true;
 			}
 		}

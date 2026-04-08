@@ -111,8 +111,12 @@ private:
 					msg.signal_quality = dist_sensor.signal_quality;
 				}
 
-				mavlink_msg_distance_sensor_send_struct(_mavlink->get_channel(), &msg);
+				// mavlink_msg_distance_sensor_send_struct(_mavlink->get_channel(), &msg);
 
+				// updated = true;
+
+				// [CRYPT]
+				send_encrypted(MAVLINK_MSG_ID_DISTANCE_SENSOR, msg);
 				updated = true;
 			}
 		}

@@ -133,7 +133,10 @@ private:
 				msg.climb = -lpos.vz;
 			}
 
-			mavlink_msg_vfr_hud_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_vfr_hud_send_struct(_mavlink->get_channel(), &msg);
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_VFR_HUD, msg);
 
 			return true;
 		}

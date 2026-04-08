@@ -98,9 +98,10 @@ private:
 			msg.servo15_raw = act.output[14];
 			msg.servo16_raw = act.output[15];
 
-			mavlink_msg_servo_output_raw_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_servo_output_raw_send_struct(_mavlink->get_channel(), &msg);
+			// return true;
 
-			return true;
+			return send_encrypted(MAVLINK_MSG_ID_SERVO_OUTPUT_RAW, msg);
 		}
 
 		return false;

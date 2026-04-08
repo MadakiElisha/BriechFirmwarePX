@@ -94,7 +94,11 @@ private:
 					msg.longitude = round(vehicle_local_position.ref_lon * 1e7); // double degree -> int32 degreeE7
 					msg.altitude = roundf(vehicle_local_position.ref_alt * 1e3f); // float m -> int32 mm
 					msg.time_usec = vehicle_local_position.ref_timestamp; // int64 time since system boot
-					mavlink_msg_gps_global_origin_send_struct(_mavlink->get_channel(), &msg);
+
+					// mavlink_msg_gps_global_origin_send_struct(_mavlink->get_channel(), &msg);
+
+					// [CRYPT]
+					send_encrypted(MAVLINK_MSG_ID_GPS_GLOBAL_ORIGIN, msg);
 
 					_ref_timestamp = vehicle_local_position.ref_timestamp;
 					_ref_lat       = vehicle_local_position.ref_lat;

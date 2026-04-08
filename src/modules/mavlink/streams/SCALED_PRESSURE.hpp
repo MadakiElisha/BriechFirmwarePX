@@ -87,9 +87,12 @@ private:
 				msg.temperature_press_diff = roundf(differential_pressure.temperature * 100.f); // cdegC (centidegrees)
 			}
 
-			mavlink_msg_scaled_pressure_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_scaled_pressure_send_struct(_mavlink->get_channel(), &msg);
 
-			return true;
+			// return true;
+
+			// [CRYPT]
+			return send_encrypted(MAVLINK_MSG_ID_SCALED_PRESSURE, msg);
 		}
 
 		return false;

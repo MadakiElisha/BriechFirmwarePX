@@ -73,8 +73,12 @@ private:
 			msg.temperature = fuel_status.temperature;
 			msg.fuel_type = fuel_status.fuel_type;
 
-			mavlink_msg_fuel_status_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_fuel_status_send_struct(_mavlink->get_channel(), &msg);
 
+			// return true;
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_FUEL_STATUS, msg);
 			return true;
 		}
 

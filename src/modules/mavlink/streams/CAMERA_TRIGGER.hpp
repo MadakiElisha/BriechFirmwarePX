@@ -121,7 +121,10 @@ private:
 					command_long_msg.param6 = NAN;
 					command_long_msg.param7 = NAN;
 
-					mavlink_msg_command_long_send_struct(_mavlink->get_channel(), &command_long_msg);
+					// mavlink_msg_command_long_send_struct(_mavlink->get_channel(), &command_long_msg);
+
+					// [CRYPT]
+					send_encrypted(MAVLINK_MSG_ID_COMMAND_LONG, command_long_msg);
 				}
 
 				return true;

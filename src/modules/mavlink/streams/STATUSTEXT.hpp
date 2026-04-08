@@ -105,7 +105,10 @@ private:
 								memcpy(&msg.text[0], &text[0], chunk_size);
 							}
 
-							mavlink_msg_statustext_send_struct(_mavlink->get_channel(), &msg);
+							// mavlink_msg_statustext_send_struct(_mavlink->get_channel(), &msg);
+
+							// [CRYPT]
+							send_encrypted(MAVLINK_MSG_ID_STATUSTEXT, msg);
 
 							if (text_size <= max_chunk_size) {
 								break;

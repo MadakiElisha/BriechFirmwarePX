@@ -77,8 +77,12 @@ private:
 				flight_info.flight_uuid = static_cast<uint64_t>(flight_uuid);
 			}
 
-			mavlink_msg_flight_information_send_struct(_mavlink->get_channel(), &flight_info);
+			// mavlink_msg_flight_information_send_struct(_mavlink->get_channel(), &flight_info);
 
+			// return true;
+
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_FLIGHT_INFORMATION, flight_info);
 			return true;
 		}
 

@@ -121,7 +121,10 @@ private:
 		}
 
 		if (updated) {
-			mavlink_msg_extended_sys_state_send_struct(_mavlink->get_channel(), &_msg);
+			// mavlink_msg_extended_sys_state_send_struct(_mavlink->get_channel(), &_msg);
+
+			// [CRYPTO]
+			send_encrypted(MAVLINK_MSG_ID_EXTENDED_SYS_STATE, _msg);
 		}
 
 		return updated;

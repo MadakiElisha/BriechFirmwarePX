@@ -72,7 +72,9 @@ private:
 			msg.z = target.z_rel;
 			msg.position_valid = target.rel_pos_valid;
 
-			mavlink_msg_landing_target_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_landing_target_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_LANDING_TARGET, msg);
 			return true;
 		}
 
