@@ -116,7 +116,7 @@ private:
 				// updated = true;
 
 				// [CRYPT]
-				send_encrypted(MAVLINK_MSG_ID_DISTANCE_SENSOR, msg);
+				_mavlink->send_encrypted(MAVLINK_MSG_ID_DISTANCE_SENSOR, msg);
 				updated = true;
 			}
 		}

@@ -82,7 +82,9 @@ private:
 			// TODO: MAV_ODID_ID_TYPE_SERIAL_NUMBER needs to be ANSI/CTA-2063 format
 			board_get_px4_guid_formated((char *)(msg.uas_id), sizeof(msg.uas_id));
 
-			mavlink_msg_open_drone_id_basic_id_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_open_drone_id_basic_id_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_OPEN_DRONE_ID_BASIC_ID, msg);
 
 			return true;
 		}

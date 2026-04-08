@@ -75,7 +75,9 @@ private:
 			msg.increment_f = obstacle_distance.increment;
 			msg.frame = obstacle_distance.frame;
 
-			mavlink_msg_obstacle_distance_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_obstacle_distance_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_OBSTACLE_DISTANCE, msg);
 
 			return true;
 		}

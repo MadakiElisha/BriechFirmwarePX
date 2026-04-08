@@ -133,7 +133,9 @@ private:
 				}
 			}
 
-			mavlink_msg_scaled_imu2_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_scaled_imu2_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_SCALED_IMU2, msg);
 			return true;
 		}
 

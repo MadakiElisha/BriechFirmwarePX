@@ -74,7 +74,7 @@ private:
 
 			// mavlink_msg_landing_target_send_struct(_mavlink->get_channel(), &msg);
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_LANDING_TARGET, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_LANDING_TARGET, msg);
 			return true;
 		}
 

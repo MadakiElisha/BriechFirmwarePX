@@ -104,7 +104,7 @@ private:
 
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_GIMBAL_DEVICE_ATTITUDE_STATUS, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_GIMBAL_DEVICE_ATTITUDE_STATUS, msg);
 			return true;
 		}
 

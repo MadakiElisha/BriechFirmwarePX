@@ -102,7 +102,9 @@ private:
 			msg.raim_hfom = UINT16_MAX;
 			msg.raim_vfom = UINT16_MAX;
 
-			mavlink_msg_gnss_integrity_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_gnss_integrity_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_GNSS_INTEGRITY, msg);
 
 			return true;
 		}

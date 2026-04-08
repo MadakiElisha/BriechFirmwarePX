@@ -75,7 +75,9 @@ private:
 			_lpos_sub.copy(&lpos);
 			msg.yaw_absolute = math::degrees(matrix::wrap_2pi(lpos.heading + mount_orientation.attitude_euler_angle[2]));
 
-			mavlink_msg_mount_orientation_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_mount_orientation_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_MOUNT_ORIENTATION, msg);
 
 			return true;
 		}

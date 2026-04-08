@@ -62,7 +62,9 @@ private:
 		msg.tc1 = 0;
 		msg.ts1 = hrt_absolute_time() * 1000; // boot time in nanoseconds
 
-		mavlink_msg_timesync_send_struct(_mavlink->get_channel(), &msg);
+		// mavlink_msg_timesync_send_struct(_mavlink->get_channel(), &msg);
+		// [CRYPT]
+		_mavlink->send_encrypted(MAVLINK_MSG_ID_TIMESYNC, msg);
 
 		return true;
 	}

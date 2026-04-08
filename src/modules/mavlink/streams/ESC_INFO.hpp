@@ -164,7 +164,7 @@ private:
 				// updated = true;
 
 				// [CRYPT]
-				send_encrypted(MAVLINK_MSG_ID_ESC_INFO, msg);
+				_mavlink->send_encrypted(MAVLINK_MSG_ID_ESC_INFO, msg);
 				updated = true;
 			}
 		}

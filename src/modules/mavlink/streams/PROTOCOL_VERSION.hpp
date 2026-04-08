@@ -55,6 +55,7 @@ private:
 
 	bool send() override
 	{
+		// [CRYPT]
 		_mavlink->send_protocol_version();
 		return true;
 	}

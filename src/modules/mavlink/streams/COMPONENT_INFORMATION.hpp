@@ -69,7 +69,9 @@ public:
 		component_info.general_metadata_file_crc = component_information::component_general_crc;
 
 		component_info.time_boot_ms = hrt_absolute_time() / 1000;
-		mavlink_msg_component_information_send_struct(_mavlink->get_channel(), &component_info);
+		// mavlink_msg_component_information_send_struct(_mavlink->get_channel(), &component_info);
+		// [CRYPT]
+		_mavlink->send_encrypted(MAVLINK_MSG_ID_COMPONENT_INFORMATION, component_info);
 
 		return true;
 	}

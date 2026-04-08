@@ -55,11 +55,7 @@ private:
 
 	bool send() override
 	{
-		// if (!_crypt_established()){
-		// 	return false;
-		// }
-
-
+		// GOING TO NEED TO SORT THIS OUT
 		return _mavlink->send_autopilot_capabilities();
 	}
 };

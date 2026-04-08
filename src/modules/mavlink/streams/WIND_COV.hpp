@@ -82,7 +82,9 @@ private:
 			msg.horiz_accuracy = 0.0f;
 			msg.vert_accuracy = 0.0f;
 
-			mavlink_msg_wind_cov_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_wind_cov_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_WIND_COV, msg);
 
 			return true;
 		}

@@ -101,7 +101,9 @@ private:
 					msg.yaw_rate = lpos_sp.yawspeed;
 				}
 
-				mavlink_msg_position_target_global_int_send_struct(_mavlink->get_channel(), &msg);
+				// mavlink_msg_position_target_global_int_send_struct(_mavlink->get_channel(), &msg);
+				// [CRYPT]
+				_mavlink->send_encrypted(MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT, msg);
 
 				return true;
 			}

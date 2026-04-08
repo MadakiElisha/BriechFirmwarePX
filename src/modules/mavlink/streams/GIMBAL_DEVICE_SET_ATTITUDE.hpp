@@ -88,7 +88,7 @@ private:
 
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_GIMBAL_DEVICE_SET_ATTITUDE, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_GIMBAL_DEVICE_SET_ATTITUDE, msg);
 			return true;
 		}
 

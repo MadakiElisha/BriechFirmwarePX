@@ -124,7 +124,7 @@ private:
 					// mavlink_msg_command_long_send_struct(_mavlink->get_channel(), &command_long_msg);
 
 					// [CRYPT]
-					send_encrypted(MAVLINK_MSG_ID_COMMAND_LONG, command_long_msg);
+					_mavlink->send_encrypted(MAVLINK_MSG_ID_COMMAND_LONG, command_long_msg);
 				}
 
 				return true;

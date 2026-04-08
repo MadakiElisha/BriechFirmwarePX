@@ -91,7 +91,7 @@ private:
 			// return true;
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_ESTIMATOR_STATUS, est_msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_ESTIMATOR_STATUS, est_msg);
 			return true;
 		}
 

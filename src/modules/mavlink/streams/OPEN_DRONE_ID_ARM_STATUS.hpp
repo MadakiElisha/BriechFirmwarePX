@@ -86,8 +86,10 @@ private:
 
 			}
 
-			mavlink_msg_open_drone_id_arm_status_send_struct(_mavlink->get_channel(),
-					&msg);
+			// mavlink_msg_open_drone_id_arm_status_send_struct(_mavlink->get_channel(),
+			// 		&msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_OPEN_DRONE_ID_ARM_STATUS, msg);
 
 			return true;
 		}

@@ -72,7 +72,9 @@ private:
 			msg.mission_end = -1;
 			msg.commanded_action = -1;
 
-			mavlink_msg_time_estimate_to_target_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_time_estimate_to_target_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_TIME_ESTIMATE_TO_TARGET, msg);
 
 			return true;
 		}

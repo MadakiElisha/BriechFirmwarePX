@@ -75,7 +75,7 @@ private:
 			// mavlink_msg_link_node_status_send_struct(_mavlink->get_channel(), &link_node_status);
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_LINK_NODE_STATUS, link_node_status);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_LINK_NODE_STATUS, link_node_status);
 
 			return true;
 		}

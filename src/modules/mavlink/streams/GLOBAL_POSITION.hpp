@@ -93,7 +93,9 @@ private:
 			msg.epv = pos.epv;
 
 
-			mavlink_msg_global_position_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_global_position_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_GLOBAL_POSITION, msg);
 
 			return true;
 		}

@@ -82,7 +82,7 @@ private:
 			// return true;
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_FLIGHT_INFORMATION, flight_info);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_FLIGHT_INFORMATION, flight_info);
 			return true;
 		}
 

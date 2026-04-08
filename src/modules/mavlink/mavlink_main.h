@@ -494,6 +494,11 @@ public:
 public:
 	MavlinkCrypt *_crypt{nullptr};
 
+	template <typename T>
+	bool send_encrypted(uint16_t msg_id, const T &msg){
+		return _send_encrypted(msg_id, (const uint8_t *)&msg, sizeof(T));
+	};
+
 private:
 	//	THIS IS WHERE THE ENCRYPTION CLASS IS ADDED
 	MavlinkReceiver 	_receiver;
@@ -726,4 +731,7 @@ private:
 	Mavlink(const Mavlink &) = delete;
 	Mavlink operator=(const Mavlink &) = delete;
 
+
+protected:
+	bool _send_encrypted(uint16_t msg_id, const uint8_t *payload, size_t payload_len);
 };

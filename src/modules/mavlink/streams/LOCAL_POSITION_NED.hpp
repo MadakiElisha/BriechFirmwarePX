@@ -75,7 +75,8 @@ private:
 			// mavlink_msg_local_position_ned_send_struct(_mavlink->get_channel(), &msg);
 			// return true;
 
-			return send_encrypted(MAVLINK_MSG_ID_LOCAL_POSITION_NED, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_LOCAL_POSITION_NED, msg);
+			return true;
 		}
 
 		return false;

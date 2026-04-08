@@ -72,7 +72,7 @@ private:
 			// return true;
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_DEBUG, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_DEBUG, msg);
 			return true;
 		}
 

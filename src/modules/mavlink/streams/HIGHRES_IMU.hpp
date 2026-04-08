@@ -198,7 +198,7 @@ private:
 
 			// mavlink_msg_highres_imu_send_struct(_mavlink->get_channel(), &msg);
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_HIGHRES_IMU, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_HIGHRES_IMU, msg);
 
 			return true;
 		}

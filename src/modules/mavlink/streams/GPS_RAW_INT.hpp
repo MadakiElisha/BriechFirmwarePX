@@ -124,7 +124,7 @@ private:
 			// mavlink_msg_gps_raw_int_send_struct(_mavlink->get_channel(), &msg);
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_GPS_RAW_INT, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_GPS_RAW_INT, msg);
 
 			_last_send_ts = now;
 

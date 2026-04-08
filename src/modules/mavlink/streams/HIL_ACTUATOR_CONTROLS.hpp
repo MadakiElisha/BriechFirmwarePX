@@ -115,7 +115,7 @@ private:
 
 			// mavlink_msg_hil_actuator_controls_send_struct(_mavlink->get_channel(), &msg);
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_HIL_ACTUATOR_CONTROLS, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_HIL_ACTUATOR_CONTROLS, msg);
 
 			return true;
 		}

@@ -95,9 +95,10 @@ private:
 			msg.thrust = matrix::Vector3f(att_sp.thrust_body).norm();
 
 			// mavlink_msg_attitude_target_send_struct(_mavlink->get_channel(), &msg);
-			// return true;
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_ATTITUDE_TARGET, msg);
+			return true;
 
-			return send_encrypted(MAVLINK_MSG_ID_ATTITUDE_TARGET, msg);
 		}
 
 		return false;

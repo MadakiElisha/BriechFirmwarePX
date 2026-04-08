@@ -73,7 +73,9 @@ private:
 				msg_orbit_execution_status.y = orbit_status.y * 1e7;
 				msg_orbit_execution_status.z = orbit_status.z;
 
-				mavlink_msg_orbit_execution_status_send_struct(_mavlink->get_channel(), &msg_orbit_execution_status);
+				// mavlink_msg_orbit_execution_status_send_struct(_mavlink->get_channel(), &msg_orbit_execution_status);
+				// [CRYPT]
+				_mavlink->send_encrypted(MAVLINK_MSG_ID_ORBIT_EXECUTION_STATUS, msg_orbit_execution_status);
 
 				// only one subscription should ever be active at any time, so we can exit here
 				updated = true;

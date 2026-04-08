@@ -77,7 +77,10 @@ private:
 			// Old message being sent
 			// mavlink_msg_actuator_output_status_send_struct(_mavlink->get_channel(), &msg);
 
-			return send_encrypted(MAVLINK_MSG_ID_ACTUATOR_OUTPUT_STATUS, msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_ACTUATOR_OUTPUT_STATUS, msg);
+
+			return true;
 		}
 
 		return false;

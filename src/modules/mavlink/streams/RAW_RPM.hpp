@@ -70,7 +70,9 @@ private:
 				msg.index = i;
 				msg.frequency = rpm.rpm_estimate;
 
-				mavlink_msg_raw_rpm_send_struct(_mavlink->get_channel(), &msg);
+				// mavlink_msg_raw_rpm_send_struct(_mavlink->get_channel(), &msg);
+				// [CRYPT]
+				_mavlink->send_encrypted(MAVLINK_MSG_ID_RAW_RPM, msg);
 				updated = true;
 			}
 		}

@@ -132,7 +132,7 @@ private:
 
 
 				// [CRYPT]
-				send_encrypted(MAVLINK_MSG_ID_ESC_STATUS, msg);
+				_mavlink->send_encrypted(MAVLINK_MSG_ID_ESC_STATUS, msg);
 				updated = true;
 			}
 		}

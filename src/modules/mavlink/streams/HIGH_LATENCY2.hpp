@@ -210,7 +210,7 @@ private:
 
 				// mavlink_msg_high_latency2_send_struct(_mavlink->get_channel(), &msg);
 				// [CRYPT]
-				send_encrypted(MAVLINK_MSG_ID_HIGH_LATENCY2, msg);
+				_mavlink->send_encrypted(MAVLINK_MSG_ID_HIGH_LATENCY2, msg);
 			}
 
 			return updated;

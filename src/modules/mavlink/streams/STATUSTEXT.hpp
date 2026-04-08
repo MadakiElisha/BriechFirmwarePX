@@ -108,7 +108,7 @@ private:
 							// mavlink_msg_statustext_send_struct(_mavlink->get_channel(), &msg);
 
 							// [CRYPT]
-							send_encrypted(MAVLINK_MSG_ID_STATUSTEXT, msg);
+							_mavlink->send_encrypted(MAVLINK_MSG_ID_STATUSTEXT, msg);
 
 							if (text_size <= max_chunk_size) {
 								break;

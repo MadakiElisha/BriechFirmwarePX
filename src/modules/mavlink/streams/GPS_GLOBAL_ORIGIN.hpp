@@ -98,7 +98,7 @@ private:
 					// mavlink_msg_gps_global_origin_send_struct(_mavlink->get_channel(), &msg);
 
 					// [CRYPT]
-					send_encrypted(MAVLINK_MSG_ID_GPS_GLOBAL_ORIGIN, msg);
+					_mavlink->send_encrypted(MAVLINK_MSG_ID_GPS_GLOBAL_ORIGIN, msg);
 
 					_ref_timestamp = vehicle_local_position.ref_timestamp;
 					_ref_lat       = vehicle_local_position.ref_lat;

@@ -78,7 +78,7 @@ private:
 			// return true;
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_FUEL_STATUS, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_FUEL_STATUS, msg);
 			return true;
 		}
 

@@ -66,7 +66,9 @@ private:
 		msg.target_system = 0; // All systems
 		msg.target_component = 0; // All components
 
-		mavlink_msg_ping_send_struct(_mavlink->get_channel(), &msg);
+		// mavlink_msg_ping_send_struct(_mavlink->get_channel(), &msg);
+		// [CRYPT]
+		_mavlink->send_encrypted(MAVLINK_MSG_ID_PING, msg);
 
 		return true;
 	}

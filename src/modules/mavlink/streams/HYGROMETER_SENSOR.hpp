@@ -74,7 +74,7 @@ private:
 
 				// mavlink_msg_hygrometer_sensor_send_struct(_mavlink->get_channel(), &msg);
 				// [CRYPT]
-				send_encrypted(MAVLINK_MSG_ID_HYGROMETER_SENSOR, msg);
+				_mavlink->send_encrypted(MAVLINK_MSG_ID_HYGROMETER_SENSOR, msg);
 
 				updated = true;
 			}

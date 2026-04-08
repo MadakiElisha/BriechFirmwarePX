@@ -85,7 +85,9 @@ private:
 			msg.alt_error = tecs_status.altitude_sp - vehicle_global_position.alt;
 			msg.aspd_error = tecs_status.true_airspeed_filtered - tecs_status.true_airspeed_sp;
 
-			mavlink_msg_nav_controller_output_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_nav_controller_output_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_NAV_CONTROLLER_OUTPUT, msg);
 
 			return true;
 		}

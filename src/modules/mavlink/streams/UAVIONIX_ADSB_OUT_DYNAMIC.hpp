@@ -107,7 +107,9 @@ private:
 			dynamic_msg.state |= ~UAVIONIX_ADSB_OUT_DYNAMIC_STATE_ON_GROUND;
 		}
 
-		mavlink_msg_uavionix_adsb_out_dynamic_send_struct(_mavlink->get_channel(), &dynamic_msg);
+		// mavlink_msg_uavionix_adsb_out_dynamic_send_struct(_mavlink->get_channel(), &dynamic_msg);
+		// [CRYPT]
+		_mavlink->send_encrypted(MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_DYNAMIC, dynamic_msg);
 
 		return true;
 	}

@@ -102,9 +102,10 @@ private:
 			}
 
 			// mavlink_msg_attitude_quaternion_send_struct(_mavlink->get_channel(), &msg);
-			// return true;
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_ATTITUDE_QUATERNION, msg);
+			return true;
 
-			return send_encrypted(MAVLINK_MSG_ID_ATTITUDE_QUATERNION, msg);
 		}
 
 		return false;

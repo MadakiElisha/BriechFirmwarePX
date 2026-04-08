@@ -81,7 +81,7 @@ private:
 			// return true;
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_FIGURE_EIGHT_EXECUTION_STATUS, msg_figure_eight_execution_status);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_FIGURE_EIGHT_EXECUTION_STATUS, msg_figure_eight_execution_status);
 			return true;
 		}
 

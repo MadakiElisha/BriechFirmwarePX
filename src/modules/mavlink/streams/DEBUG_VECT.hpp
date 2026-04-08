@@ -70,7 +70,9 @@ private:
 			msg.y = debug.y;
 			msg.z = debug.z;
 
-			mavlink_msg_debug_vect_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_debug_vect_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_DEBUG_VECT, msg);
 
 			return true;
 		}

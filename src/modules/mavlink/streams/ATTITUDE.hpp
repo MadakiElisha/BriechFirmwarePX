@@ -82,9 +82,9 @@ private:
 			msg.yawspeed = angular_velocity.xyz[2];
 
 			// mavlink_msg_attitude_send_struct(_mavlink->get_channel(), &msg);
-
-			return send_encrypted(MAVLINK_MSG_ID_ATTITUDE, msg);
-
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_ATTITUDE, msg);
+			return true;
 		}
 
 

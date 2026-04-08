@@ -117,7 +117,9 @@ private:
 				}
 			}
 
-			mavlink_msg_vibration_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_vibration_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_VIBRATION, msg);
 
 			return true;
 		}

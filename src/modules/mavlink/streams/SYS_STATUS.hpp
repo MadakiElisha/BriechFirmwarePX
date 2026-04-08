@@ -180,10 +180,10 @@ private:
 			}
 
 			// mavlink_msg_sys_status_send_struct(_mavlink->get_channel(), &msg);
-			// return true;
-
 			// [CRYPT]
-			return send_encrypted(MAVLINK_MSG_ID_SYS_STATUS, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_SYS_STATUS, msg);
+
+			return true;
 		}
 
 		return false;

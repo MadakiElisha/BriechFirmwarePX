@@ -79,7 +79,7 @@ private:
 
 			// mavlink_msg_gps_status_send_struct(_mavlink->get_channel(), &msg);
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_GPS_STATUS, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_GPS_STATUS, msg);
 
 			return true;
 		}

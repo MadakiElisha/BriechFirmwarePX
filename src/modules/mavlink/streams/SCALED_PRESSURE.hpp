@@ -89,10 +89,10 @@ private:
 
 			// mavlink_msg_scaled_pressure_send_struct(_mavlink->get_channel(), &msg);
 
-			// return true;
-
 			// [CRYPT]
-			return send_encrypted(MAVLINK_MSG_ID_SCALED_PRESSURE, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_SCALED_PRESSURE, msg);
+
+			return true;
 		}
 
 		return false;

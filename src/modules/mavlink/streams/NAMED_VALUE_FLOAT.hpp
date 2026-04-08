@@ -69,7 +69,9 @@ private:
 			msg.name[sizeof(msg.name) - 1] = '\0'; // enforce null termination
 			msg.value = debug.value;
 
-			mavlink_msg_named_value_float_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_named_value_float_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_NAMED_VALUE_FLOAT, msg);
 
 			return true;
 		}

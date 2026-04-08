@@ -181,7 +181,9 @@ private:
 
 			msg.update_rate = 0; // Data driven mode
 
-			mavlink_msg_utm_global_position_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_utm_global_position_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_UTM_GLOBAL_POSITION, msg);
 
 			return true;
 		}

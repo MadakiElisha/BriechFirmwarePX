@@ -84,7 +84,9 @@ private:
 				msg.distance = -1;
 			}
 
-			mavlink_msg_optical_flow_rad_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_optical_flow_rad_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_OPTICAL_FLOW_RAD, msg);
 
 			return true;
 		}

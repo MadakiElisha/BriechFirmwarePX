@@ -69,7 +69,9 @@ private:
 			msg.flags = gps_inject_data.flags;
 			memcpy(msg.data, gps_inject_data.data, sizeof(msg.data));
 
-			mavlink_msg_gps_rtcm_data_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_gps_rtcm_data_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_GPS_RTCM_DATA, msg);
 
 			sent = true;
 		}

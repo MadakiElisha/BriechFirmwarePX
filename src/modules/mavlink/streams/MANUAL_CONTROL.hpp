@@ -116,7 +116,9 @@ private:
 				msg.aux6 = manual_control_setpoint.aux6 * 1000.f;
 			}
 
-			mavlink_msg_manual_control_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_manual_control_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_MANUAL_CONTROL, msg);
 
 			return true;
 		}

@@ -81,7 +81,9 @@ private:
 			msg.capture_result = capture.result;
 			msg.file_url[0] = '\0';
 
-			mavlink_msg_camera_image_captured_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_camera_image_captured_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_CAMERA_IMAGE_CAPTURED, msg);
 
 			return true;
 		}

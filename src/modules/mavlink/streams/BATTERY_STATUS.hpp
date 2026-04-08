@@ -188,7 +188,7 @@ private:
 				// updated = true;
 
 				// [CRYPT]
-				send_encrypted(MAVLINK_MSG_ID_BATTERY_STATUS, bat_msg);
+				_mavlink->send_encrypted(MAVLINK_MSG_ID_BATTERY_STATUS, bat_msg);
 				updated = true;
 			}
 		}

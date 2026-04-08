@@ -87,7 +87,9 @@ private:
 			msg.chan18_raw = (rc.channel_count > 17) ? rc.values[17] : UINT16_MAX;
 			msg.rssi = (rc.channel_count > 0) ? rc.rssi : 0;
 
-			mavlink_msg_rc_channels_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_rc_channels_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_RC_CHANNELS, msg);
 			return true;
 		}
 

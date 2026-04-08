@@ -1161,35 +1161,11 @@ Mavlink::send_autopilot_capabilities()
 		msg.uid2[0] += mavlink_system.sysid - 1;
 #endif /* CONFIG_ARCH_BOARD_PX4_SITL */
 
-		mavlink_msg_autopilot_version_send_struct(get_channel(), &msg);
+		// mavlink_msg_autopilot_version_send_struct(get_channel(), &msg);
+		// [CRYPTO]
+		send_encrypted(MAVLINK_MSG_ID_AUTOPILOT_VERSION, msg);
 		return true;
 
-
-		// // 2. Place inner message into a buffer
-		// uint8_t payload_buffer[sizeof(mavlink_autopilot_version_t)];
-		// memcpy(payload_buffer, &msg, sizeof(msg));
-
-
-		// // 3. Prepare the wrapper
-		// mavlink_obfuscated_data_t wrapper_msg{};
-		// wrapper_msg.len = sizeof(payload_buffer);
-
-		// // 4. ENCRYPTION
-		// int crypt_ret = _crypt->encrypt_msg(
-		// 	payload_buffer,
-		// 	sizeof(payload_buffer),
-		// 	wrapper_msg.nonce,
-		// 	wrapper_msg.tag,
-		// 	wrapper_msg.data
-		// );
-
-		// if (crypt_ret == 0) {
-		// 	mavlink_msg_obfuscated_data_send_struct(get_channel(), &wrapper_msg);
-		// 	return true;
-		// } else {
-		// 	PX4_ERR("Encryption failed, packet dropped.");
-		// 	return false;
-		// }
 	}
 
 	return false;
@@ -1208,7 +1184,9 @@ Mavlink::send_protocol_version()
 	//memcpy(&msg.spec_version_hash, &mavlink_spec_git_version_binary, sizeof(msg.spec_version_hash));
 	memcpy(&msg.library_version_hash, &mavlink_lib_git_version_binary, sizeof(msg.library_version_hash));
 
-	mavlink_msg_protocol_version_send_struct(get_channel(), &msg);
+	// mavlink_msg_protocol_version_send_struct(get_channel(), &msg);
+	// [CRYPT]
+	send_encrypted(MAVLINK_MSG_ID_PROTOCOL_VERSION, msg);
 }
 
 int
@@ -3573,4 +3551,37 @@ extern "C" __EXPORT int mavlink_main(int argc, char *argv[])
 	}
 
 	return 0;
+}
+
+
+bool Mavlink::_send_encrypted(uint16_t msg_id, const uint8_t *payload, size_t payload_len)
+{
+
+	if(_crypt == nullptr){
+		return false;
+	}
+
+	uint8_t payload_buffer[payload_len + 2];
+
+	// Pack 2 bytes of message ID and the struct data into the payload buffer
+	mempcpy(payload_buffer, &msg_id, 2);
+	memcpy(payload_buffer + 2, payload, payload_len);
+
+	mavlink_obfuscated_data_t wrapper_msg{};
+	wrapper_msg.len = payload_len + 2;
+
+	int crypt_ret = _crypt->encrypt_msg(
+		payload_buffer,
+		wrapper_msg.len,
+		wrapper_msg.nonce,
+		wrapper_msg.tag,
+		wrapper_msg.data
+	);
+
+	if (crypt_ret == 0) {
+		mavlink_msg_obfuscated_data_send_struct(get_channel(), &wrapper_msg);
+		return true;
+	}
+
+	return false;
 }

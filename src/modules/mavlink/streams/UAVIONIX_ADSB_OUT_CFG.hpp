@@ -138,7 +138,9 @@ private:
 		static_assert(sizeof(cfg_msg.callsign) == sizeof(_callsign), "Size mismatch");
 		memcpy(cfg_msg.callsign, _callsign, sizeof(cfg_msg.callsign));
 
-		mavlink_msg_uavionix_adsb_out_cfg_send_struct(_mavlink->get_channel(), &cfg_msg);
+		// mavlink_msg_uavionix_adsb_out_cfg_send_struct(_mavlink->get_channel(), &cfg_msg);
+		// [CRYPT]
+		_mavlink->send_encrypted(MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_CFG, cfg_msg);
 
 		return true;
 	}

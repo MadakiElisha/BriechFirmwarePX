@@ -104,7 +104,9 @@ private:
 		}
 
 		storage_info.time_boot_ms = hrt_absolute_time() / 1000;
-		mavlink_msg_storage_information_send_struct(_mavlink->get_channel(), &storage_info);
+		// mavlink_msg_storage_information_send_struct(_mavlink->get_channel(), &storage_info);
+		// [CRYPT]
+		_mavlink->send_encrypted(MAVLINK_MSG_ID_STORAGE_INFORMATION, storage_info);
 		return true;
 	}
 };

@@ -141,7 +141,9 @@ private:
 
 			msg.quality = odom.quality;
 
-			mavlink_msg_odometry_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_odometry_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_ODOMETRY, msg);
 
 			return true;
 		}

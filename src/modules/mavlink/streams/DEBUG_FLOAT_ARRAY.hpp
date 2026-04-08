@@ -73,7 +73,9 @@ private:
 				msg.data[i] = debug.data[i];
 			}
 
-			mavlink_msg_debug_float_array_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_debug_float_array_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY, msg);
 
 			return true;
 		}

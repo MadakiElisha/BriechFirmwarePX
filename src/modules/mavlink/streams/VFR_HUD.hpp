@@ -136,7 +136,7 @@ private:
 			// mavlink_msg_vfr_hud_send_struct(_mavlink->get_channel(), &msg);
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_VFR_HUD, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_VFR_HUD, msg);
 
 			return true;
 		}

@@ -65,7 +65,9 @@ private:
 		// If the time is before 2001-01-01, it's probably the default 2000
 		// and we don't need to bother sending it because it's definitely wrong.
 		if (msg.time_unix_usec > 978307200000000) {
-			mavlink_msg_system_time_send_struct(_mavlink->get_channel(), &msg);
+			// mavlink_msg_system_time_send_struct(_mavlink->get_channel(), &msg);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_SYSTEM_TIME, msg);
 			return true;
 		}
 

@@ -102,7 +102,7 @@ private:
 
 						// mavlink_msg_mag_cal_report_send_struct(_mavlink->get_channel(), &msg);
 						// [CRYPT]
-						send_encrypted(MAVLINK_MSG_ID_MAG_CAL_REPORT, msg);
+						_mavlink->send_encrypted(MAVLINK_MSG_ID_MAG_CAL_REPORT, msg);
 						sent = true;
 					}
 				}

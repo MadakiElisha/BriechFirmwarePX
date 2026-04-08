@@ -255,43 +255,16 @@ private:
 
 	bool send() override
 	{
-		// if (!_crypt_established()){
-		// 	return false;
-		// }
 
 		if (_had_dynamic_update) {
 			// 1. Prepare inner message
 			mavlink_available_modes_monitor_t monitor{};
 			monitor.seq = _dynamic_update_seq;
 
-			mavlink_msg_available_modes_monitor_send_struct(_mavlink->get_channel(), &monitor);
+			// mavlink_msg_available_modes_monitor_send_struct(_mavlink->get_channel(), &monitor);
+			// [CRYPT]
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_AVAILABLE_MODES, monitor);
 			return true;
-
-			// // 2. Place inner message into a buffer
-			// uint8_t payload_buffer[sizeof(mavlink_available_modes_monitor_t)];
-			// memcpy(payload_buffer, &monitor, sizeof(monitor));
-
-
-			// // 3. Prepare the wrapper
-			// mavlink_obfuscated_data_t wrapper_msg{};
-			// wrapper_msg.len = sizeof(payload_buffer);
-
-			// // 4. ENCRYPTION
-			// int crypt_ret = _mavlink->_crypt->encrypt_msg(
-			// 	payload_buffer,
-			// 	sizeof(payload_buffer),
-			// 	wrapper_msg.nonce,
-			// 	wrapper_msg.tag,
-			// 	wrapper_msg.data
-			// );
-
-			// if (crypt_ret == 0) {
-			// 	mavlink_msg_obfuscated_data_send_struct(_mavlink->get_channel(), &wrapper_msg);
-			// 	return true;
-			// } else {
-			// 	PX4_ERR("Encryption failed, packet dropped.");
-			// 	return false;
-			// }
 		}
 
 		return false;

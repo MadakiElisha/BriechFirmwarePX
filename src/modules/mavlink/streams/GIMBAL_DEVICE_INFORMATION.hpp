@@ -91,7 +91,7 @@ private:
 
 
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_GIMBAL_DEVICE_INFORMATION, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_GIMBAL_DEVICE_INFORMATION, msg);
 			return true;
 		}
 
