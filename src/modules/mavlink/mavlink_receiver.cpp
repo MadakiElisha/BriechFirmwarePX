@@ -1817,7 +1817,10 @@ MavlinkReceiver::handle_message_ping(mavlink_message_t *msg)
 
 		ping.target_system = msg->sysid;
 		ping.target_component = msg->compid;
-		mavlink_msg_ping_send_struct(_mavlink.get_channel(), &ping);
+
+		// [CRYPT]
+		// mavlink_msg_ping_send_struct(_mavlink.get_channel(), &ping);
+		_mavlink.send_encrypted(MAVLINK_MSG_ID_PING, ping);
 
 	} else if ((ping.target_system == mavlink_system.sysid) &&
 		   (ping.target_component ==

@@ -122,6 +122,8 @@ int MavlinkULog::handle_update(mavlink_channel_t channel)
 					msg.target_system = _target_system;
 					msg.target_component = _target_component;
 					memcpy(msg.data, ulog_data.data, sizeof(msg.data));
+
+					// [CRYPT]
 					mavlink_msg_logging_data_acked_send_struct(channel, &msg);
 				}
 			}

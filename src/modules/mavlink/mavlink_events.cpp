@@ -201,7 +201,10 @@ void SendProtocol::handle_request_event(const mavlink_message_t &msg) const
 			event_error.sequence_oldest_available = _buffer.get_oldest_sequence_after(sequence);
 			event_error.reason = MAV_EVENT_ERROR_REASON_UNAVAILABLE;
 			PX4_DEBUG("Event unavailable (seq=%i oldest=%i)", sequence, event_error.sequence_oldest_available);
-			mavlink_msg_response_event_error_send_struct(_mavlink.get_channel(), &event_error);
+
+			// [CRYPT]
+			// mavlink_msg_response_event_error_send_struct(_mavlink.get_channel(), &event_error);
+			_mavlink.send_encrypted(MAVLINK_MSG_ID_RESPONSE_EVENT_ERROR, event_error);
 		}
 	}
 }
@@ -218,7 +221,10 @@ void SendProtocol::send_event(const Event &event) const
 		event_msg.log_levels = event.log_levels;
 		static_assert(sizeof(event_msg.arguments) >= sizeof(event.arguments), "MAVLink message arguments buffer too small");
 		memcpy(&event_msg.arguments, event.arguments, sizeof(event.arguments));
-		mavlink_msg_event_send_struct(_mavlink.get_channel(), &event_msg);
+
+		// [CRYPT]
+		// mavlink_msg_event_send_struct(_mavlink.get_channel(), &event_msg);
+		_mavlink.send_encrypted(MAVLINK_MSG_ID_EVENT, event_msg);
 	}
 }
 
@@ -239,7 +245,11 @@ void SendProtocol::send_current_sequence(const hrt_abstime &now, bool force_rese
 	mavlink_current_event_sequence_t current_event_seq;
 	current_event_seq.sequence = _buffer.get_latest_sequence();
 	current_event_seq.flags = (_buffer.size() == 0 || force_reset) ? MAV_EVENT_CURRENT_SEQUENCE_FLAGS_RESET : 0;
-	mavlink_msg_current_event_sequence_send_struct(_mavlink.get_channel(), &current_event_seq);
+
+	// [CRYPT]
+	// mavlink_msg_current_event_sequence_send_struct(_mavlink.get_channel(), &current_event_seq);
+
+	_mavlink.send_encrypted(MAVLINK_MSG_ID_CURRENT_EVENT_SEQUENCE, current_event_seq);
 }
 
 } /* namespace events */

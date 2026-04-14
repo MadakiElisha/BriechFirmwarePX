@@ -176,7 +176,9 @@ MavlinkFTP::_process_request(
 #ifdef MAVLINK_FTP_UNIT_TEST
 			_utRcvMsgFunc(last_reply, _worker_data);
 #else
-			mavlink_msg_file_transfer_protocol_send_struct(_mavlink.get_channel(), last_reply);
+			// [CRYPT]
+			// mavlink_msg_file_transfer_protocol_send_struct(_mavlink.get_channel(), last_reply);
+			_mavlink.send_encrypted(MAVLINK_MSG_ID_FILE_TRANSFER_PROTOCOL, last_reply);
 #endif
 			return;
 		}
@@ -336,7 +338,9 @@ MavlinkFTP::_reply(mavlink_file_transfer_protocol_t *ftp_req)
 	// Unit test hook is set, call that instead
 	_utRcvMsgFunc(ftp_req, _worker_data);
 #else
-	mavlink_msg_file_transfer_protocol_send_struct(_mavlink.get_channel(), ftp_req);
+	// [CRYPT]
+	// mavlink_msg_file_transfer_protocol_send_struct(_mavlink.get_channel(), ftp_req);
+	_mavlink.send_encrypted(MAVLINK_MSG_ID_FILE_TRANSFER_PROTOCOL, ftp_req);
 #endif
 
 }

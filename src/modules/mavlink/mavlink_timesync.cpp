@@ -68,7 +68,9 @@ MavlinkTimesync::handle_message(const mavlink_message_t *msg)
 				rsync.target_component = msg->compid;
 				rsync.target_system = msg->sysid;
 
-				mavlink_msg_timesync_send_struct(_mavlink.get_channel(), &rsync);
+				// [CRYPT]
+				// mavlink_msg_timesync_send_struct(_mavlink.get_channel(), &rsync);
+				_mavlink.send_encrypted(MAVLINK_MSG_ID_TIMESYNC, rsync);
 
 				return;
 

@@ -202,7 +202,10 @@ MavlinkParametersManager::handle_message(const mavlink_message_t *msg)
 						strncpy(param_value.param_id, HASH_PARAM, MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN);
 						param_value.param_type = MAV_PARAM_TYPE_UINT32;
 						memcpy(&param_value.param_value, &hash, sizeof(hash));
-						mavlink_msg_param_value_send_struct(_mavlink.get_channel(), &param_value);
+
+						// [CRYPT]
+						// mavlink_msg_param_value_send_struct(_mavlink.get_channel(), &param_value);
+						_mavlink.send_encrypted(MAVLINK_MSG_ID_PARAM_VALUE, param_value);
 
 					} else {
 						/* local name buffer to enforce null-terminated string */
@@ -461,7 +464,10 @@ MavlinkParametersManager::send_one()
 			strncpy(msg.param_id, HASH_PARAM, MAVLINK_MSG_PARAM_VALUE_FIELD_PARAM_ID_LEN);
 			msg.param_type = MAV_PARAM_TYPE_UINT32;
 			memcpy(&msg.param_value, &hash, sizeof(hash));
-			mavlink_msg_param_value_send_struct(_mavlink.get_channel(), &msg);
+
+			// [CRYPT]
+			// mavlink_msg_param_value_send_struct(_mavlink.get_channel(), &msg);
+			_mavlink.send_encrypted(MAVLINK_MSG_ID_PARAM_VALUE, msg);
 
 			/* after this we should start sending all params */
 			_send_all_index = 0;

@@ -239,7 +239,9 @@ void MavlinkLogHandler::state_sending_data()
 		msg.id = _current_entry.id;
 		msg.ofs = _current_entry.offset;
 
-		mavlink_msg_log_data_send_struct(_mavlink.get_channel(), &msg);
+		// [CRYPT]
+		// mavlink_msg_log_data_send_struct(_mavlink.get_channel(), &msg);
+		_mavlink.send_encrypted(MAVLINK_MSG_ID_LOG_DATA, msg);
 
 		bytes_sent += MAVLINK_PACKET_SIZE;
 		_current_entry.offset += msg.count;
@@ -475,7 +477,10 @@ void MavlinkLogHandler::send_log_entry(uint32_t time_utc, uint32_t size_bytes)
 	msg.id           = _list_request.current_id;
 	msg.num_logs     = _num_logs;
 	msg.last_log_num = _list_request.last_id;
-	mavlink_msg_log_entry_send_struct(_mavlink.get_channel(), &msg);
+
+	// [CRYPT]
+	// mavlink_msg_log_entry_send_struct(_mavlink.get_channel(), &msg);
+	_mavlink.send_encrypted(MAVLINK_MSG_ID_LOG_ENTRY, msg);
 }
 
 bool MavlinkLogHandler::log_entry_from_id(uint16_t log_id, LogEntry *entry)

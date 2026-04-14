@@ -2647,7 +2647,9 @@ void Mavlink::handleMavlinkShellOutput()
 
 		// Send message without lock
 		if (msg.count > 0) {
-			mavlink_msg_serial_control_send_struct(get_channel(), &msg);
+			// mavlink_msg_serial_control_send_struct(get_channel(), &msg);
+			// [CRYPT]
+			send_encrypted(MAVLINK_MSG_ID_SERIAL_CONTROL, msg);
 		}
 	}
 }
@@ -2779,11 +2781,16 @@ void Mavlink::handleAndGetCurrentCommandAck()
 					if (_mode == MAVLINK_MODE_IRIDIUM) {
 						if (command_ack.from_external) {
 							// for MAVLINK_MODE_IRIDIUM send only if external
-							mavlink_msg_command_ack_send_struct(get_channel(), &msg);
+
+							// [CRYPT]
+							// mavlink_msg_command_ack_send_struct(get_channel(), &msg);
+							send_encrypted(MAVLINK_MSG_ID_COMMAND_ACK, msg);
 						}
 
 					} else {
-						mavlink_msg_command_ack_send_struct(get_channel(), &msg);
+						// [CRYPT]
+						// mavlink_msg_command_ack_send_struct(get_channel(), &msg);
+						send_encrypted(MAVLINK_MSG_ID_COMMAND_ACK, msg);
 					}
 
 				}
@@ -3558,6 +3565,11 @@ bool Mavlink::_send_encrypted(uint16_t msg_id, const uint8_t *payload, size_t pa
 {
 
 	if(_crypt == nullptr){
+		return false;
+	}
+
+	if (payload_len > 200) {
+		PX4_ERR("[CRYPT] Payload too large for encryption!!!");
 		return false;
 	}
 

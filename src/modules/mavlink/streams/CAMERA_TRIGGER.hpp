@@ -84,7 +84,10 @@ private:
 				mavlink_camera_trigger_t msg{};
 				msg.time_usec = camera_trigger.timestamp;
 				msg.seq = camera_trigger.seq;
-				mavlink_msg_camera_trigger_send_struct(_mavlink->get_channel(), &msg);
+
+				// [CRYPT]
+				// mavlink_msg_camera_trigger_send_struct(_mavlink->get_channel(), &msg);
+				_mavlink->send_encrypted(MAVLINK_MSG_ID_CAMERA_TRIGGER, msg);
 
 				_camera_status_sub.update(&_camera_status);
 

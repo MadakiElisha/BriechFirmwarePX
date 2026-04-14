@@ -137,7 +137,9 @@ private:
 			available_modes.properties |= MAV_MODE_PROPERTY_NOT_USER_SELECTABLE;
 		}
 
-		mavlink_msg_available_modes_send_struct(_mavlink->get_channel(), &available_modes);
+		// [CRYPT]
+		// mavlink_msg_available_modes_send_struct(_mavlink->get_channel(), &available_modes);
+		_mavlink->send_encrypted(MAVLINK_MSG_ID_AVAILABLE_MODES, available_modes);
 	}
 
 	bool request_message(float param2, float param3, float param4,
