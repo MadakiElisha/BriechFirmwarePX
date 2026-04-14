@@ -122,13 +122,6 @@ public:
 	 */
 	void reset_last_sent() { _last_sent = 0; }
 
-	bool crypt_established();
-
-	template <typename T>
-	bool send_encrypted(uint16_t msg_id, const T &msg){
-		return _send_encrypted(msg_id, (const uint8_t *)&msg, sizeof(T));
-	};
-
 protected:
 	Mavlink      *const _mavlink;
 	int _interval{1000000};		///< if set to negative value = unlimited rate
@@ -142,8 +135,6 @@ protected:
 	 * This function is called at every iteration of the mavlink module.
 	 */
 	virtual void update_data() { }
-
-	bool _send_encrypted(uint16_t msg_id, const uint8_t *payload, size_t payload_len);
 
 
 private:

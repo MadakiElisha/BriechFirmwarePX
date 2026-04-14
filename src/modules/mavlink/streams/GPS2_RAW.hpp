@@ -111,7 +111,7 @@ private:
 
 			// mavlink_msg_gps2_raw_send_struct(_mavlink->get_channel(), &msg);
 			// [CRYPT]
-			send_encrypted(MAVLINK_MSG_ID_GPS2_RAW, msg);
+			_mavlink->send_encrypted(MAVLINK_MSG_ID_GPS2_RAW, msg);
 			_last_send_ts = gps.timestamp;
 
 			return true;
