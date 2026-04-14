@@ -3570,30 +3570,86 @@ bool Mavlink::_send_encrypted(uint16_t msg_id, const uint8_t *payload, size_t pa
 
 	if (payload_len > 200) {
 		PX4_ERR("[CRYPT] Payload too large for encryption!!!");
+		uint8_t messages_sent = 0;
+		uint8_t payload_buffer[120+2];
+
+		memcpy(payload_buffer, &msg_id, 2);
+		memcpy(payload_buffer + 2, payload, 120);
+
+		mavlink_obfuscated_piece_t wrapper_msg{};
+		wrapper_msg.len = 120 + 2;
+		wrapper_msg.seq = 0;
+
+		int crypt_ret = _crypt->encrypt_msg(
+			payload_buffer,
+			wrapper_msg.len,
+			wrapper_msg.nonce,
+			wrapper_msg.tag,
+			wrapper_msg.data
+		);
+
+		if(crypt_ret == 0) {
+			mavlink_msg_obfuscated_piece_send_struct(get_channel(), &wrapper_msg);
+			messages_sent++;
+		}else{
+			PX4_ERR("[CRYPT] Encryption failed for message ID %u, Seq %u", msg_id, wrapper_msg.seq);
+			return false;
+		}
+
+		uint8_t payload_buffer_2[payload_len - 120 + 2];
+		memcpy(payload_buffer_2, &msg_id, 2);
+		memcpy(payload_buffer_2 + 2, payload + 120, payload_len - 120);
+
+		mavlink_obfuscated_piece_t wrapper_msg_2{};
+		wrapper_msg_2.len = payload_len - 120 + 2;
+		wrapper_msg_2.seq = 1;
+
+		crypt_ret = _crypt->encrypt_msg(
+			payload_buffer_2,
+			wrapper_msg_2.len,
+			wrapper_msg_2.nonce,
+			wrapper_msg_2.tag,
+			wrapper_msg_2.data
+		);
+
+		if(crypt_ret == 0){
+			mavlink_msg_obfuscated_piece_send_struct(get_channel(), &wrapper_msg_2);
+			messages_sent++;
+		}else
+		{
+			PX4_ERR("[CRYPT] Encryption failed for message ID %u, Seq %u", msg_id, wrapper_msg.seq);
+			return false;
+		}
+
+		if(messages_sent == 2){
+			return true;
+		}
 		return false;
+	}else{
+		uint8_t payload_buffer[payload_len + 2];
+
+		// Pack 2 bytes of message ID and the struct data into the payload buffer
+		mempcpy(payload_buffer, &msg_id, 2);
+		memcpy(payload_buffer + 2, payload, payload_len);
+
+		mavlink_obfuscated_data_t wrapper_msg{};
+		wrapper_msg.len = payload_len + 2;
+
+		int crypt_ret = _crypt->encrypt_msg(
+			payload_buffer,
+			wrapper_msg.len,
+			wrapper_msg.nonce,
+			wrapper_msg.tag,
+			wrapper_msg.data
+		);
+
+		if (crypt_ret == 0) {
+			mavlink_msg_obfuscated_data_send_struct(get_channel(), &wrapper_msg);
+			return true;
+		}
 	}
 
-	uint8_t payload_buffer[payload_len + 2];
 
-	// Pack 2 bytes of message ID and the struct data into the payload buffer
-	mempcpy(payload_buffer, &msg_id, 2);
-	memcpy(payload_buffer + 2, payload, payload_len);
-
-	mavlink_obfuscated_data_t wrapper_msg{};
-	wrapper_msg.len = payload_len + 2;
-
-	int crypt_ret = _crypt->encrypt_msg(
-		payload_buffer,
-		wrapper_msg.len,
-		wrapper_msg.nonce,
-		wrapper_msg.tag,
-		wrapper_msg.data
-	);
-
-	if (crypt_ret == 0) {
-		mavlink_msg_obfuscated_data_send_struct(get_channel(), &wrapper_msg);
-		return true;
-	}
-
+	PX4_ERR("[CRYPT] Encryption failed for message ID %u", msg_id);
 	return false;
 }
