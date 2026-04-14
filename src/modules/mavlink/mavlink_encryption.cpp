@@ -5,13 +5,13 @@ MavlinkCrypt::MavlinkCrypt(Mavlink *parent) :
 	_state(crypt_state::IDLE),
 	_mavlink(parent)
 {
-	PX4_INFO("[Debug] MavLinkCrypt Initializing");
+	PX4_INFO("[Debug] MavLinkCrypt Initialized");
 
-    if(!_generate_key_pair()) PX4_ERR("[Debug] Failed to initialize");
 }
 
 MavlinkCrypt::~MavlinkCrypt()
 {
+    // GET RID OF ALL OF THE ENCRYPTION VARIABLES AND PARAMETERS
 }
 
 int MavlinkCrypt::encrypt_msg(
@@ -61,6 +61,12 @@ bool MavlinkCrypt::decrypt_payload(
 
 void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[24])
 {
+    _state = crypt_state::IDLE;
+
+    if(!_generate_key_pair()) {
+        PX4_ERR("[Debug] Failed to initialize");
+    }
+
     memcpy(_recvd_public_key, public_key, 32);
     memcpy(_recvd_nonce, nonce, 24);
 

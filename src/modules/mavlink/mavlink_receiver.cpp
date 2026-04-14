@@ -149,7 +149,7 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	case crypt_state::IDLE:
 		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
 		else if (msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
-			PX4_INFO("We are getting a request from a lil guy to connect, cute");
+			PX4_INFO("[CRYPT] Received connection request from GCS, initiating handshake...");
 			mavlink_secure_handshake_t handshake;
 			mavlink_msg_secure_handshake_decode(msg, &handshake);
 
@@ -172,6 +172,10 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 			{
 				PX4_INFO("Received the challenge successfully");
 				_crypt->verify_handshake(handshake.key, handshake.nonce, handshake.tag);
+			}
+			else if(handshake.state== 0){
+				PX4_INFO("[CRYPT] Received reconnection request from GCS, initiating handshake...");
+				_crypt->initiate_handshake(handshake.key, handshake.nonce);
 			}
 		}
 		break;
@@ -209,6 +213,15 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 			} else {
 			PX4_ERR("[Crypt] Decryption failed");
 			return;
+			}
+		}
+		else if(msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
+			mavlink_secure_handshake_t handshake;
+			mavlink_msg_secure_handshake_decode(msg, &handshake);
+			if (handshake.state==0)
+			{
+				PX4_INFO("[CRYPT] Received reconnection request from GCS, initiating handshake...");
+				_crypt->initiate_handshake(handshake.key, handshake.nonce);
 			}
 		}
 		break;
