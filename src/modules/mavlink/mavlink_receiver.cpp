@@ -89,12 +89,6 @@ MavlinkReceiver::~MavlinkReceiver()
 	_sensor_baro_pub.unadvertise();
 	_sensor_gps_pub.unadvertise();
 	_sensor_optical_flow_pub.unadvertise();
-
-	if(_crypt != nullptr){
-		delete _crypt;
-		_crypt = nullptr;
-	}
-
 }
 
 static constexpr vehicle_odometry_s vehicle_odometry_empty {
@@ -113,10 +107,9 @@ static constexpr vehicle_odometry_s vehicle_odometry_empty {
 	.quality = 0
 };
 
-MavlinkReceiver::MavlinkReceiver(Mavlink &parent, MavlinkCrypt *crypt) :
+MavlinkReceiver::MavlinkReceiver(Mavlink &parent) :
 	ModuleParams(nullptr),
 	_mavlink(parent),
-	_crypt(crypt),
 	_mavlink_ftp(parent),
 	_mavlink_log_handler(parent),
 	_mission_manager(parent),
@@ -143,295 +136,368 @@ MavlinkReceiver::acknowledge(uint8_t sysid, uint8_t compid, uint16_t command, ui
 void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
 {
-	switch (_crypt->state())
+	switch (_mavlink._crypt->state())
 	{
+		// Allow heartbeats through and allow secure handshake messages through so that a connection can be establisehed, but ignore all other messages until the connection is established
+		case crypt_state::IDLE:
 
-	case crypt_state::IDLE:
-		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
-		else if (msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
-			PX4_INFO("[CRYPT] Received connection request from GCS, initiating handshake...");
-			mavlink_secure_handshake_t handshake;
-			mavlink_msg_secure_handshake_decode(msg, &handshake);
-
-			_crypt->initiate_handshake(handshake.key, handshake.nonce);
-		}
-		else
-		{
-			return;
-		}
-
-		break;
-
-	case crypt_state::WAIT_FINAL:
-		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
-
-		else if (msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
-			mavlink_secure_handshake_t handshake;
-			mavlink_msg_secure_handshake_decode(msg, &handshake);
-			if (handshake.state==2)
+			if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT)
 			{
-				PX4_INFO("Received the challenge successfully");
-				_crypt->verify_handshake(handshake.key, handshake.nonce, handshake.tag);
+				handle_message_decrypted(msg);
+				return;
 			}
-			else if(handshake.state== 0){
-				PX4_INFO("[CRYPT] Received reconnection request from GCS, initiating handshake...");
-				_crypt->initiate_handshake(handshake.key, handshake.nonce);
+			else if (msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
+				PX4_INFO("[CRYPT] Received connection request from GCS, initiating handshake...");
+				mavlink_secure_handshake_t handshake;
+				mavlink_msg_secure_handshake_decode(msg, &handshake);
+
+				_mavlink._crypt->initiate_handshake(handshake.key, handshake.nonce);
 			}
-		}
-		break;
-	case crypt_state::ESTABLISHED:
-		if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT) break;
-		else if(msg->msgid == MAVLINK_MSG_ID_OBFUSCATED_DATA){
-			mavlink_obfuscated_data_t obfuscated;
-			mavlink_msg_obfuscated_data_decode(msg, &obfuscated);
+			else
+			{
+				return;
+			}
 
-			uint8_t decrypted_payload[280];
-			if (_crypt->decrypt_payload(decrypted_payload, obfuscated.data, obfuscated.len, obfuscated.nonce, obfuscated.tag)) {
+			break;
 
-			mavlink_message_t inner_msg;
-			mavlink_status_t inner_status;
-			bool found_inner = false;
+		case crypt_state::WAIT_FINAL:
+			if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT)
+			{
+				handle_message_decrypted(msg);
+				return;
+			}
 
-			for (uint8_t i = 0; i < obfuscated.len; i++) {
-				if (mavlink_parse_char(MAVLINK_COMM_0, decrypted_payload[i], &inner_msg, &inner_status)) {
-					// Overwrite the original msg struct with the inner_msg content
-					*msg = inner_msg;
-					found_inner = true;
-					PX4_INFO("[Debug] Message received from GCS");
-					break;
+			else if (msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE)
+			{
+				mavlink_secure_handshake_t handshake;
+				mavlink_msg_secure_handshake_decode(msg, &handshake);
+				if (handshake.state==2)
+				{
+					PX4_INFO("Received the challenge successfully");
+						_mavlink._crypt->verify_handshake(handshake.key, handshake.nonce, handshake.tag);
+				}
+				else if(handshake.state== 0)
+				{
+					PX4_INFO("[CRYPT] Received reconnection request from GCS, initiating handshake...");
+					_mavlink._crypt->initiate_handshake(handshake.key, handshake.nonce);
+				}
+			}
+			break;
+
+		case crypt_state::ESTABLISHED:
+			if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT)
+			{
+				handle_message_decrypted(msg);
+				return;
+			}
+			else if(msg->msgid == MAVLINK_MSG_ID_OBFUSCATED_DATA)
+			{
+				PX4_INFO("[CRYPT] Received obfuscated message, how quaint!");
+
+				mavlink_obfuscated_data_t obfuscated;
+				mavlink_msg_obfuscated_data_decode(msg, &obfuscated);
+
+				// Create a buffer for the decrypted data
+				uint8_t decrypted_payload[obfuscated.len];
+
+				// Decrypt
+				if (_mavlink._crypt->decrypt_payload(
+					decrypted_payload,
+					obfuscated.data,
+					obfuscated.len,
+					obfuscated.nonce,
+					obfuscated.tag
+				) == 0)
+				{
+					// Extract the 2 Byte message
+					uint16_t inner_msg_id;
+					memcpy(&inner_msg_id, &decrypted_payload[0], 2);
+
+					PX4_INFO("[CRYPT] Message ID: %d", inner_msg_id);
+
+					// Reconstruct mavlink_message_t
+					mavlink_message_t inner_msg;
+					inner_msg.msgid	= inner_msg_id;
+					inner_msg.len	= obfuscated.len - 2;
+					inner_msg.magic = msg->magic;
+
+					inner_msg.seq	= msg->seq;
+					inner_msg.sysid = msg->sysid;
+					inner_msg.compid  = msg->compid;
+
+					// Set the payload
+					uint16_t copy_len = math::min((uint16_t)inner_msg.len, (uint16_t)(sizeof(inner_msg.payload64)));
+					memcpy(inner_msg.payload64, &decrypted_payload[2], copy_len);
+
+					handle_message(&inner_msg);
+					return;
+
+				}
+
+				// uint8_t decrypted_payload[obfuscated.len];
+				// if (_mavlink._crypt->decrypt_payload(decrypted_payload, obfuscated.data, obfuscated.len, obfuscated.nonce, obfuscated.tag))
+				// {
+				// 	mavlink_message_t inner_msg;
+				// 	mavlink_status_t inner_status;
+				// 	bool found_inner = false;
+
+				// 	for (uint8_t i = 0; i < obfuscated.len; i++) {
+				// 		if (mavlink_parse_char(MAVLINK_COMM_0, decrypted_payload[i], &inner_msg, &inner_status))
+				// 		{
+				// 			// Overwrite the original msg struct with the inner_msg content
+				// 			*msg = inner_msg;
+				// 			found_inner = true;
+				// 			PX4_INFO("[Debug] Message received from GCS");
+				// 			break;
+				// 		}
+				// 	}
+
+				// 	if (!found_inner)
+				// 	{
+				// 		PX4_ERR("[Crypt] No MAVLINK Packet found. Parser status: %d", inner_status.parse_error);
+				// 		return; // Decrypted fine, but didn't find a valid MAVLink packet inside
+				// 	}
+
+				// 	// Fall through to the rest of handle_message
+				// 	break;
+
+				// }
+
+				else
+				{
+					PX4_ERR("[Crypt] Decryption failed");
+					return;
 				}
 			}
 
-			if (!found_inner) {
-				PX4_ERR("[Crypt] No MAVLINK Packet found. Parser status: %d", inner_status.parse_error);
-				return; // Decrypted fine, but didn't find a valid MAVLink packet inside
+			else if(msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE)
+			{
+				mavlink_secure_handshake_t handshake;
+				mavlink_msg_secure_handshake_decode(msg, &handshake);
+				if (handshake.state==0)
+				{
+					PX4_INFO("[CRYPT] Received reconnection request from GCS, initiating handshake...");
+					_mavlink._crypt->initiate_handshake(handshake.key, handshake.nonce);
+				}
 			}
-
-			// Fall through to the rest of handle_message
 			break;
 
-			} else {
-			PX4_ERR("[Crypt] Decryption failed");
-			return;
-			}
-		}
-		else if(msg->msgid == MAVLINK_MSG_ID_SECURE_HANDSHAKE){
-			mavlink_secure_handshake_t handshake;
-			mavlink_msg_secure_handshake_decode(msg, &handshake);
-			if (handshake.state==0)
-			{
-				PX4_INFO("[CRYPT] Received reconnection request from GCS, initiating handshake...");
-				_crypt->initiate_handshake(handshake.key, handshake.nonce);
-			}
-		}
-		break;
-	default:
-		break;
+		default:
+			break;
 
 	}
-	// PX4_INFO("[DEBUGGING] Got msg ID: %u from Sys: %u", msg->msgid, msg->sysid);
+}
 
-
+// [CRYPT]
+void MavlinkReceiver::handle_message_decrypted(mavlink_message_t *msg)
+{
+	if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT){
+		PX4_INFO("[CRYPT] Receieved heartbeat");
+	}
+	else{
+		PX4_INFO("[CRYPT] Received a HELLO");
+	}
 
 	switch (msg->msgid) {
 
-	case MAVLINK_MSG_ID_COMMAND_LONG:
-		handle_message_command_long(msg);
-		break;
+		case MAVLINK_MSG_ID_COMMAND_LONG:
+			handle_message_command_long(msg);
+			break;
 
-	case MAVLINK_MSG_ID_COMMAND_INT:
-		handle_message_command_int(msg);
-		break;
+		case MAVLINK_MSG_ID_COMMAND_INT:
+			handle_message_command_int(msg);
+			break;
 
-	case MAVLINK_MSG_ID_COMMAND_ACK:
-		handle_message_command_ack(msg);
-		break;
+		case MAVLINK_MSG_ID_COMMAND_ACK:
+			handle_message_command_ack(msg);
+			break;
 
-	case MAVLINK_MSG_ID_OPTICAL_FLOW_RAD:
-		handle_message_optical_flow_rad(msg);
-		break;
+		case MAVLINK_MSG_ID_OPTICAL_FLOW_RAD:
+			handle_message_optical_flow_rad(msg);
+			break;
 
-	case MAVLINK_MSG_ID_PING:
-		handle_message_ping(msg);
-		break;
+		case MAVLINK_MSG_ID_PING:
+			handle_message_ping(msg);
+			break;
 
-	case MAVLINK_MSG_ID_SET_MODE:
-		handle_message_set_mode(msg);
-		break;
+		case MAVLINK_MSG_ID_SET_MODE:
+			handle_message_set_mode(msg);
+			break;
 
-	case MAVLINK_MSG_ID_ATT_POS_MOCAP:
-		handle_message_att_pos_mocap(msg);
-		break;
+		case MAVLINK_MSG_ID_ATT_POS_MOCAP:
+			handle_message_att_pos_mocap(msg);
+			break;
 
-	case MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED:
-		handle_message_set_position_target_local_ned(msg);
-		break;
+		case MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED:
+			handle_message_set_position_target_local_ned(msg);
+			break;
 
-	case MAVLINK_MSG_ID_SET_POSITION_TARGET_GLOBAL_INT:
-		handle_message_set_position_target_global_int(msg);
-		break;
+		case MAVLINK_MSG_ID_SET_POSITION_TARGET_GLOBAL_INT:
+			handle_message_set_position_target_global_int(msg);
+			break;
 
-	case MAVLINK_MSG_ID_SET_ATTITUDE_TARGET:
-		handle_message_set_attitude_target(msg);
-		break;
+		case MAVLINK_MSG_ID_SET_ATTITUDE_TARGET:
+			handle_message_set_attitude_target(msg);
+			break;
 
-	case MAVLINK_MSG_ID_VISION_POSITION_ESTIMATE:
-		handle_message_vision_position_estimate(msg);
-		break;
+		case MAVLINK_MSG_ID_VISION_POSITION_ESTIMATE:
+			handle_message_vision_position_estimate(msg);
+			break;
 
-	case MAVLINK_MSG_ID_ODOMETRY:
-		handle_message_odometry(msg);
-		break;
+		case MAVLINK_MSG_ID_ODOMETRY:
+			handle_message_odometry(msg);
+			break;
 
-	case MAVLINK_MSG_ID_SET_GPS_GLOBAL_ORIGIN:
-		handle_message_set_gps_global_origin(msg);
-		break;
+		case MAVLINK_MSG_ID_SET_GPS_GLOBAL_ORIGIN:
+			handle_message_set_gps_global_origin(msg);
+			break;
 
-	case MAVLINK_MSG_ID_RADIO_STATUS:
-		handle_message_radio_status(msg);
-		break;
+		case MAVLINK_MSG_ID_RADIO_STATUS:
+			handle_message_radio_status(msg);
+			break;
 
-	case MAVLINK_MSG_ID_MANUAL_CONTROL:
-		handle_message_manual_control(msg);
-		break;
+		case MAVLINK_MSG_ID_MANUAL_CONTROL:
+			handle_message_manual_control(msg);
+			break;
 
-	case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE:
-		handle_message_rc_channels_override(msg);
-		break;
+		case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE:
+			handle_message_rc_channels_override(msg);
+			break;
 
-	case MAVLINK_MSG_ID_HEARTBEAT:
-		handle_message_heartbeat(msg);
-		break;
+		case MAVLINK_MSG_ID_HEARTBEAT:
+			handle_message_heartbeat(msg);
+			break;
 
-	case MAVLINK_MSG_ID_DISTANCE_SENSOR:
-		handle_message_distance_sensor(msg);
-		break;
+		case MAVLINK_MSG_ID_DISTANCE_SENSOR:
+			handle_message_distance_sensor(msg);
+			break;
 
-	case MAVLINK_MSG_ID_FOLLOW_TARGET:
-		handle_message_follow_target(msg);
-		break;
+		case MAVLINK_MSG_ID_FOLLOW_TARGET:
+			handle_message_follow_target(msg);
+			break;
 
-	case MAVLINK_MSG_ID_LANDING_TARGET:
-		handle_message_landing_target(msg);
-		break;
+		case MAVLINK_MSG_ID_LANDING_TARGET:
+			handle_message_landing_target(msg);
+			break;
 
-	case MAVLINK_MSG_ID_CELLULAR_STATUS:
-		handle_message_cellular_status(msg);
-		break;
+		case MAVLINK_MSG_ID_CELLULAR_STATUS:
+			handle_message_cellular_status(msg);
+			break;
 
-	case MAVLINK_MSG_ID_ADSB_VEHICLE:
-		handle_message_adsb_vehicle(msg);
-		break;
+		case MAVLINK_MSG_ID_ADSB_VEHICLE:
+			handle_message_adsb_vehicle(msg);
+			break;
 
-	case MAVLINK_MSG_ID_GPS_RTCM_DATA:
-		handle_message_gps_rtcm_data(msg);
-		break;
+		case MAVLINK_MSG_ID_GPS_RTCM_DATA:
+			handle_message_gps_rtcm_data(msg);
+			break;
 
-	case MAVLINK_MSG_ID_BATTERY_STATUS:
-		handle_message_battery_status(msg);
-		break;
+		case MAVLINK_MSG_ID_BATTERY_STATUS:
+			handle_message_battery_status(msg);
+			break;
 
-	case MAVLINK_MSG_ID_SERIAL_CONTROL:
-		handle_message_serial_control(msg);
-		break;
+		case MAVLINK_MSG_ID_SERIAL_CONTROL:
+			handle_message_serial_control(msg);
+			break;
 
-	case MAVLINK_MSG_ID_LOGGING_ACK:
-		handle_message_logging_ack(msg);
-		break;
+		case MAVLINK_MSG_ID_LOGGING_ACK:
+			handle_message_logging_ack(msg);
+			break;
 
-	case MAVLINK_MSG_ID_PLAY_TUNE:
-		handle_message_play_tune(msg);
-		break;
+		case MAVLINK_MSG_ID_PLAY_TUNE:
+			handle_message_play_tune(msg);
+			break;
 
-	case MAVLINK_MSG_ID_PLAY_TUNE_V2:
-		handle_message_play_tune_v2(msg);
-		break;
+		case MAVLINK_MSG_ID_PLAY_TUNE_V2:
+			handle_message_play_tune_v2(msg);
+			break;
 
-	case MAVLINK_MSG_ID_OBSTACLE_DISTANCE:
-		handle_message_obstacle_distance(msg);
-		break;
+		case MAVLINK_MSG_ID_OBSTACLE_DISTANCE:
+			handle_message_obstacle_distance(msg);
+			break;
 
-	case MAVLINK_MSG_ID_TUNNEL:
-		handle_message_tunnel(msg);
-		break;
+		case MAVLINK_MSG_ID_TUNNEL:
+			handle_message_tunnel(msg);
+			break;
 
-	case MAVLINK_MSG_ID_ONBOARD_COMPUTER_STATUS:
-		handle_message_onboard_computer_status(msg);
-		break;
+		case MAVLINK_MSG_ID_ONBOARD_COMPUTER_STATUS:
+			handle_message_onboard_computer_status(msg);
+			break;
 
-	case MAVLINK_MSG_ID_GENERATOR_STATUS:
-		handle_message_generator_status(msg);
-		break;
+		case MAVLINK_MSG_ID_GENERATOR_STATUS:
+			handle_message_generator_status(msg);
+			break;
 
-	case MAVLINK_MSG_ID_STATUSTEXT:
-		handle_message_statustext(msg);
-		break;
+		case MAVLINK_MSG_ID_STATUSTEXT:
+			handle_message_statustext(msg);
+			break;
 
-	case MAVLINK_MSG_ID_OPEN_DRONE_ID_OPERATOR_ID:
-		handle_message_open_drone_id_operator_id(msg);
-		break;
+		case MAVLINK_MSG_ID_OPEN_DRONE_ID_OPERATOR_ID:
+			handle_message_open_drone_id_operator_id(msg);
+			break;
 
-	case MAVLINK_MSG_ID_OPEN_DRONE_ID_SELF_ID:
-		handle_message_open_drone_id_self_id(msg);
-		break;
+		case MAVLINK_MSG_ID_OPEN_DRONE_ID_SELF_ID:
+			handle_message_open_drone_id_self_id(msg);
+			break;
 
-	case MAVLINK_MSG_ID_OPEN_DRONE_ID_SYSTEM:
-		handle_message_open_drone_id_system(msg);
-		break;
+		case MAVLINK_MSG_ID_OPEN_DRONE_ID_SYSTEM:
+			handle_message_open_drone_id_system(msg);
+			break;
 
 #if !defined(CONSTRAINED_FLASH)
 
-	case MAVLINK_MSG_ID_NAMED_VALUE_FLOAT:
-		handle_message_named_value_float(msg);
-		break;
+		case MAVLINK_MSG_ID_NAMED_VALUE_FLOAT:
+			handle_message_named_value_float(msg);
+			break;
 
-	case MAVLINK_MSG_ID_NAMED_VALUE_INT:
-		handle_message_named_value_int(msg);
-		break;
+		case MAVLINK_MSG_ID_NAMED_VALUE_INT:
+			handle_message_named_value_int(msg);
+			break;
 
-	case MAVLINK_MSG_ID_DEBUG:
-		handle_message_debug(msg);
-		break;
+		case MAVLINK_MSG_ID_DEBUG:
+			handle_message_debug(msg);
+			break;
 
-	case MAVLINK_MSG_ID_DEBUG_VECT:
-		handle_message_debug_vect(msg);
-		break;
+		case MAVLINK_MSG_ID_DEBUG_VECT:
+			handle_message_debug_vect(msg);
+			break;
 
-	case MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY:
-		handle_message_debug_float_array(msg);
-		break;
+		case MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY:
+			handle_message_debug_float_array(msg);
+			break;
 #endif // !CONSTRAINED_FLASH
 
-	case MAVLINK_MSG_ID_GIMBAL_MANAGER_SET_ATTITUDE:
-		handle_message_gimbal_manager_set_attitude(msg);
-		break;
+		case MAVLINK_MSG_ID_GIMBAL_MANAGER_SET_ATTITUDE:
+			handle_message_gimbal_manager_set_attitude(msg);
+			break;
 
-	case MAVLINK_MSG_ID_GIMBAL_MANAGER_SET_MANUAL_CONTROL:
-		handle_message_gimbal_manager_set_manual_control(msg);
-		break;
+		case MAVLINK_MSG_ID_GIMBAL_MANAGER_SET_MANUAL_CONTROL:
+			handle_message_gimbal_manager_set_manual_control(msg);
+			break;
 
-	case MAVLINK_MSG_ID_GIMBAL_DEVICE_INFORMATION:
-		handle_message_gimbal_device_information(msg);
-		break;
+		case MAVLINK_MSG_ID_GIMBAL_DEVICE_INFORMATION:
+			handle_message_gimbal_device_information(msg);
+			break;
 
-	case MAVLINK_MSG_ID_REQUEST_EVENT:
-		handle_message_request_event(msg);
-		break;
+		case MAVLINK_MSG_ID_REQUEST_EVENT:
+			handle_message_request_event(msg);
+			break;
 
-	case MAVLINK_MSG_ID_GIMBAL_DEVICE_ATTITUDE_STATUS:
-		handle_message_gimbal_device_attitude_status(msg);
-		break;
+		case MAVLINK_MSG_ID_GIMBAL_DEVICE_ATTITUDE_STATUS:
+			handle_message_gimbal_device_attitude_status(msg);
+			break;
 
 #if defined(MAVLINK_MSG_ID_SET_VELOCITY_LIMITS) // For now only defined if development.xml is used
 
-	case MAVLINK_MSG_ID_SET_VELOCITY_LIMITS:
-		handle_message_set_velocity_limits(msg);
-		break;
+		case MAVLINK_MSG_ID_SET_VELOCITY_LIMITS:
+			handle_message_set_velocity_limits(msg);
+			break;
 #endif
 
-	default:
-		break;
+		default:
+			break;
 	}
+
 
 	/*
 	 * Only decode hil messages in HIL mode.

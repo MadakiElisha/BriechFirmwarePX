@@ -104,7 +104,7 @@ bool Mavlink::_boot_complete = false;
 Mavlink::Mavlink() :
 	ModuleParams(nullptr),
 	_crypt(nullptr),
-	_receiver(*this, _crypt)
+	_receiver(*this)
 {
 	// initialise parameter cache
 	mavlink_update_parameters();
@@ -2301,7 +2301,6 @@ Mavlink::task_main(int argc, char *argv[])
 		// Only Initialize Encryption class for the necessary Telemetry ports
 		if(_instance_id == 0){
 			_crypt = new MavlinkCrypt(this);
-			_receiver.set_crypt(_crypt);
 		}
 
 	} else {
@@ -3624,7 +3623,10 @@ bool Mavlink::_send_encrypted(uint16_t msg_id, const uint8_t *payload, size_t pa
 		if(messages_sent == 2){
 			return true;
 		}
+		PX4_ERR("[CRYPT] Failed to send all pieces for message ID %u", msg_id);
 		return false;
+
+
 	}else{
 		uint8_t payload_buffer[payload_len + 2];
 
@@ -3650,6 +3652,6 @@ bool Mavlink::_send_encrypted(uint16_t msg_id, const uint8_t *payload, size_t pa
 	}
 
 
-	PX4_ERR("[CRYPT] Encryption failed for message ID %u", msg_id);
+	// PX4_ERR("[CRYPT] Encryption failed for message ID %u", msg_id);
 	return false;
 }

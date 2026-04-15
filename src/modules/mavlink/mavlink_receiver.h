@@ -130,7 +130,7 @@ class Mavlink;
 class MavlinkReceiver : public ModuleParams
 {
 public:
-	MavlinkReceiver(Mavlink &parent, MavlinkCrypt *crypt);
+	MavlinkReceiver(Mavlink &parent);
 	~MavlinkReceiver() override;
 
 	void start();
@@ -139,8 +139,6 @@ public:
 	bool component_was_seen(int system_id, int component_id);
 	void enable_message_statistics() { _message_statistics_enabled = true; }
 	void print_detailed_rx_stats() const;
-
-	void set_crypt(MavlinkCrypt *crypt) { _crypt = crypt;}
 
 	void request_stop() { _should_exit.store(true); }
 
@@ -162,6 +160,8 @@ private:
 					       float param4 = 0.0f, float param5 = 0.0f, float param6 = 0.0f, float param7 = 0.0f);
 
 	void handle_message(mavlink_message_t *msg);
+	// [CRYPT]
+	void handle_message_decrypted(mavlink_message_t *msg);
 	void handle_messages_in_gimbal_mode(mavlink_message_t &msg);
 
 	void handle_message_adsb_vehicle(mavlink_message_t *msg);
@@ -257,7 +257,6 @@ private:
 	void updateParams() override;
 
 	Mavlink &_mavlink;
-	MavlinkCrypt *_crypt;
 
 	MavlinkFTP			_mavlink_ftp;
 	MavlinkLogHandler		_mavlink_log_handler;
