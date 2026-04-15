@@ -12,7 +12,12 @@ MavlinkCrypt::MavlinkCrypt(Mavlink *parent) :
 MavlinkCrypt::~MavlinkCrypt()
 {
     // GET RID OF ALL OF THE ENCRYPTION VARIABLES AND PARAMETERS
+    crypto_wipe(_secret_key, 32);
+    crypto_wipe(_public_key, 32);
+    crypto_wipe(_shared_key, 32);
+    crypto_wipe(_session_key, 32);
 }
+
 
 int MavlinkCrypt::encrypt_msg(
 	const uint8_t *plaintext,
@@ -40,6 +45,7 @@ int MavlinkCrypt::decrypt_msg(
 {
 	return 1;
 }
+
 
 bool MavlinkCrypt::decrypt_payload(
 			uint8_t *payload,
@@ -209,18 +215,6 @@ bool MavlinkCrypt::_send_public_key()
 	return 1;
 }
 
-// void MavlinkCrypt::recv_public_key(uint8_t public_key[32]){
-//     PX4_INFO("[Debug] Received public key from GCS");
-//     print_key(public_key, 32);
-
-//     PX4_INFO("[Debug] Generating shared key");
-//     crypto_x25519(_shared_key, _secret_key, public_key);
-
-//     print_key(_shared_key, 32);
-
-//     finalize_handshake();
-// }
-
 
 bool MavlinkCrypt::_random_num_gen(uint8_t* buffer, uint8_t size)
 {
@@ -248,6 +242,7 @@ bool MavlinkCrypt::_random_num_gen(uint8_t* buffer, uint8_t size)
 
     return true;
 }
+
 
 void MavlinkCrypt::print_key(uint8_t* key, size_t len)
 {

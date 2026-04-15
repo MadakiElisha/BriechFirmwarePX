@@ -92,6 +92,8 @@ class MavlinkCrypt
 
 		unsigned char _session_key[32];
 
+		uint64_t message_counter;
+
 		const char* _mission_password = "oscar-oscar-papa-sierra";
 
 		crypt_state _state;
