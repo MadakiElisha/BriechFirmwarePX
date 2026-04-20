@@ -131,6 +131,6 @@
         },
         "C_Cpp.default.compileCommands": [
                 "${workspaceFolder}/build/compile_commands.json",
-                ""
+                "${workspaceFolder}/build/px4_sitl_default/compile_commands.json"
         ],
 }
