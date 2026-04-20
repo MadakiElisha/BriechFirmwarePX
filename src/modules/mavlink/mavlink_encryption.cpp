@@ -19,46 +19,36 @@ MavlinkCrypt::~MavlinkCrypt()
 }
 
 
-int MavlinkCrypt::encrypt_msg(
-	const uint8_t *plaintext,
-	size_t plaintext_len,
-    uint8_t *nonce,
-    uint8_t *tag,
-	uint8_t *output)
+int MavlinkCrypt::encrypt_msg(const uint8_t *plaintext, size_t plaintext_len, uint8_t *nonce, uint8_t *tag, uint8_t *output)
 {
 	if (_state != crypt_state::ESTABLISHED) {
         // PX4_ERR("Cannot encrypt message: Handshake not established");
         return -1;
     }
 
-    _random_num_gen(nonce, 24);
+    _encr_counter += 2;
+    uint8_t full_nonce[24] = {0};
+    memcpy(full_nonce, &_encr_counter, 8);
+    memcpy(nonce, &_encr_counter, 8);
 
-    crypto_aead_lock(output, tag, _session_key, nonce, NULL, 0, plaintext, plaintext_len);
+    crypto_aead_lock(output, tag, _session_key, full_nonce, NULL, 0, plaintext, plaintext_len);
 
     return 0;
 }
 
-int MavlinkCrypt::decrypt_msg(
-	const encrypted_message_s *encrypted,
-	uint8_t *plaintext,
-	size_t *plaintext_len)
+
+int MavlinkCrypt::decrypt_msg(const encrypted_message_s *encrypted, uint8_t *plaintext, size_t *plaintext_len)
 {
 	return 1;
 }
 
 
-bool MavlinkCrypt::decrypt_payload(
-			uint8_t *payload,
-			uint8_t *cipher,
-			size_t len,
-			uint8_t *nonce,
-			uint8_t *tag
-		)
+bool MavlinkCrypt::decrypt_payload(uint8_t *payload, uint8_t *cipher, size_t len, uint8_t *nonce, uint8_t *tag)
 {
+
     if (crypto_aead_unlock(payload, tag, _session_key, nonce, NULL, 0, cipher, len) == 0) {
         return true;
     }
-
 
     // Integrity check failed! Someone tampered with the message or the key is wrong.
     return false;
@@ -113,19 +103,21 @@ void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[24])
 }
 
 
-void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uint8_t mac[16])
+void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[8], uint8_t mac[16])
 {
-
     uint8_t plain_key[32] = {};
 
-    // Decrypt the pass key
+    memcpy(&_encr_counter, nonce, 8);
 
+    // Decrypt the pass key
     PX4_INFO("\n[Debug] Encrypted Pass Key");
     print_key(pass_key, 32);
     PX4_INFO("\n[Debug] Decryption Nonce");
-    print_key(nonce, 24);
+    uint8_t full_nonce[24] = {0};
+    memcpy(full_nonce, nonce, 8);
+    print_key(nonce, 8);
 
-    if (crypto_aead_unlock(plain_key, mac, _session_key, nonce, NULL, 0, pass_key, 32) == 0) {
+    if (crypto_aead_unlock(plain_key, mac, _session_key, full_nonce, NULL, 0, pass_key, 32) == 0) {
         PX4_INFO("[Crypto] Decrypted verification key");
     } else {
         // Integrity check FAILED.
@@ -136,24 +128,25 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uin
     }
 
     // Re-encrypt the pass key
+    _encr_counter++; // ensure that the counter starts offset from the gcs counter. From now on, only add 2
     uint8_t encrypted_pass_key[32] = {0};
     uint8_t new_mac[16] = {0};
     uint8_t new_nonce[24] = {0};
-    _random_num_gen(new_nonce, 24);
+    memcpy(new_nonce, &_encr_counter, 8);
 
     crypto_aead_lock(encrypted_pass_key, new_mac, _session_key, new_nonce, NULL, 0, plain_key, 32);
 
     PX4_INFO("\n[Debug] Re-encrypted Pass Key");
     print_key(encrypted_pass_key, 32);
     PX4_INFO("\n[Debug] Re-encryption Nonce");
-    print_key(new_nonce, 24);
+    print_key(new_nonce, 8);
 
 
     // Send the reencrypted pass
     mavlink_msg_secure_handshake_send(
         _mavlink->get_channel(),
         255,
-        new_nonce,
+        &_encr_counter,
         2, // State: Verification Response
         encrypted_pass_key,
         new_mac

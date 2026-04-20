@@ -291,12 +291,12 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 // [CRYPT]
 void MavlinkReceiver::handle_message_decrypted(mavlink_message_t *msg)
 {
-	if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT){
-		PX4_INFO("[CRYPT] Receieved heartbeat");
-	}
-	else{
-		PX4_INFO("[CRYPT] Received a HELLO");
-	}
+	// if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT){
+	// 	PX4_INFO("[CRYPT] Receieved heartbeat");
+	// }
+	// else{
+	// 	PX4_INFO("[CRYPT] Received a HELLO");
+	// }
 
 	switch (msg->msgid) {
 
