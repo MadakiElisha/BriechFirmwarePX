@@ -190,10 +190,9 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 				handle_message_decrypted(msg);
 				return;
 			}
+
 			else if(msg->msgid == MAVLINK_MSG_ID_OBFUSCATED_DATA)
 			{
-				PX4_INFO("[CRYPT] Received obfuscated message, how quaint!");
-
 				mavlink_obfuscated_data_t obfuscated;
 				mavlink_msg_obfuscated_data_decode(msg, &obfuscated);
 

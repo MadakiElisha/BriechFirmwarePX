@@ -9,6 +9,7 @@ MavlinkCrypt::MavlinkCrypt(Mavlink *parent) :
 
 }
 
+
 MavlinkCrypt::~MavlinkCrypt()
 {
     // GET RID OF ALL OF THE ENCRYPTION VARIABLES AND PARAMETERS
@@ -45,8 +46,20 @@ int MavlinkCrypt::decrypt_msg(const encrypted_message_s *encrypted, uint8_t *pla
 
 bool MavlinkCrypt::decrypt_payload(uint8_t *payload, uint8_t *cipher, size_t len, uint8_t *nonce, uint8_t *tag)
 {
+    uint64_t recv_counter;
+    memcpy(&recv_counter, nonce, 8);
 
-    if (crypto_aead_unlock(payload, tag, _session_key, nonce, NULL, 0, cipher, len) == 0) {
+    // Prevent replay attacks
+    if(recv_counter <= _recv_counter){
+        // PX4_ERR("Replay attack detected: received counter %lu is not greater than last counter %lu", recv_counter, _recv_counter);
+        return false;
+    }
+
+    uint8_t full_nonce[24] = {0};
+    memcpy(full_nonce, nonce, 8);
+
+    if (crypto_aead_unlock(payload, tag, _session_key, full_nonce, NULL, 0, cipher, len) == 0) {
+        _recv_counter = recv_counter;
         return true;
     }
 
@@ -103,19 +116,21 @@ void MavlinkCrypt::initiate_handshake(uint8_t public_key[32], uint8_t nonce[24])
 }
 
 
-void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[8], uint8_t mac[16])
+void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uint8_t mac[16])
 {
     uint8_t plain_key[32] = {};
 
+    // Start the counter at the recvd gcs counter value
     memcpy(&_encr_counter, nonce, 8);
 
     // Decrypt the pass key
     PX4_INFO("\n[Debug] Encrypted Pass Key");
     print_key(pass_key, 32);
     PX4_INFO("\n[Debug] Decryption Nonce");
+    // Pad the nonce for ChaCha20
     uint8_t full_nonce[24] = {0};
-    memcpy(full_nonce, nonce, 8);
-    print_key(nonce, 8);
+    memcpy(full_nonce, nonce, 24);
+    print_key(nonce, 24);
 
     if (crypto_aead_unlock(plain_key, mac, _session_key, full_nonce, NULL, 0, pass_key, 32) == 0) {
         PX4_INFO("[Crypto] Decrypted verification key");
@@ -132,7 +147,9 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[8], uint
     uint8_t encrypted_pass_key[32] = {0};
     uint8_t new_mac[16] = {0};
     uint8_t new_nonce[24] = {0};
+    uint8_t new_counter[8] = {0};
     memcpy(new_nonce, &_encr_counter, 8);
+    memcpy(new_counter, &_encr_counter, 8);
 
     crypto_aead_lock(encrypted_pass_key, new_mac, _session_key, new_nonce, NULL, 0, plain_key, 32);
 
@@ -146,7 +163,7 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[8], uint
     mavlink_msg_secure_handshake_send(
         _mavlink->get_channel(),
         255,
-        &_encr_counter,
+        new_nonce,
         2, // State: Verification Response
         encrypted_pass_key,
         new_mac

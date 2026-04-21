@@ -3676,6 +3676,6 @@ bool Mavlink::_send_encrypted(uint16_t msg_id, const uint8_t *payload, size_t pa
 	}
 
 
-	PX4_ERR("[CRYPT] Encryption failed for message ID %u", msg_id);
+	// PX4_ERR("[CRYPT] Encryption failed for message ID %u", msg_id);
 	return false;
 }
