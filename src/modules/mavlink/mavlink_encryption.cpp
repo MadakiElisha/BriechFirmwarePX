@@ -129,7 +129,7 @@ void MavlinkCrypt::verify_handshake(uint8_t pass_key[32], uint8_t nonce[24], uin
     PX4_INFO("\n[Debug] Decryption Nonce");
     // Pad the nonce for ChaCha20
     uint8_t full_nonce[24] = {0};
-    memcpy(full_nonce, nonce, 24);
+    memcpy(full_nonce, nonce, 8);
     print_key(nonce, 24);
 
     if (crypto_aead_unlock(plain_key, mac, _session_key, full_nonce, NULL, 0, pass_key, 32) == 0) {

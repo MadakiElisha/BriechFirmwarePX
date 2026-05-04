@@ -205,65 +205,23 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 					obfuscated.data,
 					obfuscated.len,
 					obfuscated.nonce,
-					obfuscated.tag
-				) == 0)
-				{
+					obfuscated.tag)){
+
 					// Extract the 2 Byte message
 					uint16_t inner_msg_id;
-					memcpy(&inner_msg_id, &decrypted_payload[0], 2);
+					memcpy(&inner_msg_id, decrypted_payload, 2);
 
-					PX4_INFO("[CRYPT] Message ID: %d", inner_msg_id);
 
-					// Reconstruct mavlink_message_t
-					mavlink_message_t inner_msg;
-					inner_msg.msgid	= inner_msg_id;
-					inner_msg.len	= obfuscated.len - 2;
-					inner_msg.magic = msg->magic;
+					mavlink_message_t decr_msg;
+					decr_msg.msgid = inner_msg_id;
+					decr_msg.len = obfuscated.len - 2;
+					memcpy(_MAV_PAYLOAD_NON_CONST(&decr_msg), &decrypted_payload[2], obfuscated.len - 2);
 
-					inner_msg.seq	= msg->seq;
-					inner_msg.sysid = msg->sysid;
-					inner_msg.compid  = msg->compid;
+					handle_message_decrypted(&decr_msg);
 
-					// Set the payload
-					uint16_t copy_len = math::min((uint16_t)inner_msg.len, (uint16_t)(sizeof(inner_msg.payload64)));
-					memcpy(inner_msg.payload64, &decrypted_payload[2], copy_len);
-
-					handle_message(&inner_msg);
 					return;
 
-				}
-
-				// uint8_t decrypted_payload[obfuscated.len];
-				// if (_mavlink._crypt->decrypt_payload(decrypted_payload, obfuscated.data, obfuscated.len, obfuscated.nonce, obfuscated.tag))
-				// {
-				// 	mavlink_message_t inner_msg;
-				// 	mavlink_status_t inner_status;
-				// 	bool found_inner = false;
-
-				// 	for (uint8_t i = 0; i < obfuscated.len; i++) {
-				// 		if (mavlink_parse_char(MAVLINK_COMM_0, decrypted_payload[i], &inner_msg, &inner_status))
-				// 		{
-				// 			// Overwrite the original msg struct with the inner_msg content
-				// 			*msg = inner_msg;
-				// 			found_inner = true;
-				// 			PX4_INFO("[Debug] Message received from GCS");
-				// 			break;
-				// 		}
-				// 	}
-
-				// 	if (!found_inner)
-				// 	{
-				// 		PX4_ERR("[Crypt] No MAVLINK Packet found. Parser status: %d", inner_status.parse_error);
-				// 		return; // Decrypted fine, but didn't find a valid MAVLink packet inside
-				// 	}
-
-				// 	// Fall through to the rest of handle_message
-				// 	break;
-
-				// }
-
-				else
-				{
+				} else{
 					PX4_ERR("[Crypt] Decryption failed");
 					return;
 				}
@@ -290,7 +248,11 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 // [CRYPT]
 void MavlinkReceiver::handle_message_decrypted(mavlink_message_t *msg)
 {
-	// if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT){
+
+	// if(msg->msgid == MAVLINK_MSG_ID_COMMAND_LONG){
+	// 	PX4_INFO("[CRYPT] Received a COMMAND_LONG");
+	// }
+	// else if(msg->msgid == MAVLINK_MSG_ID_HEARTBEAT){
 	// 	PX4_INFO("[CRYPT] Receieved heartbeat");
 	// }
 	// else{
@@ -300,6 +262,14 @@ void MavlinkReceiver::handle_message_decrypted(mavlink_message_t *msg)
 	switch (msg->msgid) {
 
 		case MAVLINK_MSG_ID_COMMAND_LONG:
+			PX4_INFO("[CRYPT] Handling a COMMAND_LONG");
+
+			mavlink_command_long_t cmd;
+			mavlink_msg_command_long_decode(msg, &cmd);
+
+			if (cmd.command == MAV_CMD_NAV_TAKEOFF) {
+				PX4_INFO("Takeoff received! Alt: %f", (double)cmd.param7);
+			}
 			handle_message_command_long(msg);
 			break;
 
